@@ -1,0 +1,11 @@
+version: '3'
+volumes:
+    data:
+services:
+    main:
+        build: .
+        image: stor.highloadcup.ru/travels/keen_coati:main
+        volumes:
+            - data:/var/lib/postgresql/data
+        ports:
+            - "80:80"
