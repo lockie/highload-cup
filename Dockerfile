@@ -15,7 +15,7 @@ ENV POSTGRES_DB default
 
 RUN apk add --no-cache dumb-init && \
     # install postgres, see docker-library postgres/9.6/alpine/Dockerfile
-    RUN set -ex; \
+    set -ex; \
     postgresHome="$(getent passwd postgres)"; \
     postgresHome="$(echo "$postgresHome" | cut -d: -f6)"; \
     [ "$postgresHome" = '/var/lib/postgresql' ]; \
