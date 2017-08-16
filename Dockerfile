@@ -95,7 +95,7 @@ RUN apk add --no-cache dumb-init && \
           bash \
           su-exec \
           tzdata \
-      && apk del .fetch-deps .build-deps \
+      && apk del .fetch-deps \
       && cd / \
       && rm -rf \
           /usr/src/postgresql \
@@ -110,12 +110,15 @@ RUN apk add --no-cache dumb-init && \
 
 VOLUME /var/lib/postgresql/data
 
-COPY . /usr/src/app
-WORKDIR /usr/src/app
+COPY requirements.txt /usr/src/app/
 
-RUN pip install --no-cache-dir -r /usr/src/app/requirements.txt
+RUN pip install --no-cache-dir -r /usr/src/app/requirements.txt && \
+    apk del .build-deps
 
 EXPOSE 80
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ./start.sh
+
+COPY . /usr/src/app
+WORKDIR /usr/src/app
