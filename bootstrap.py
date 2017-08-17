@@ -4,13 +4,11 @@ import glob
 import json
 import os
 from sqlalchemy import create_engine
-from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import sessionmaker
 import tempfile
 import time
 import zipfile
 
-from config import DATABASE
 from models import Base
 
 
@@ -35,8 +33,7 @@ def import_json_file(filename, session):
 
 def main():
     start = time.time()
-    dsn = str(URL(**DATABASE))
-    engine = create_engine(dsn)
+    engine = create_engine('postgresql+psycopg2://root@/default')
     Base.metadata.create_all(engine)
 
     Session = sessionmaker()
@@ -45,7 +42,8 @@ def main():
         data = zipfile.ZipFile('/tmp/data/data.zip', 'r')
         data.extractall(directory)
         data.close()
-        for filename in glob.glob(directory + '/*.json'):
+        for filename in sorted(glob.glob(directory + '/*.json'),
+                               key=lambda f: 2 if 'visits' in f else 1):
             # XXX is it okay to have one transaction per file?..
             import_json_file(filename, Session())
             os.remove(filename)

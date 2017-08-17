@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from sqlalchemy import ForeignKey, Column, Integer, String
+from sqlalchemy import ForeignKey, Column, String, Integer, SmallInteger
 from sqlalchemy.ext.declarative import declarative_base
 import sqlalchemy.types as types
 
@@ -17,3 +17,21 @@ class User(Base):
     last_name = Column(String(50))
     gender = Column(types.CHAR(1))
     birth_date = Column(Integer)
+
+
+class Location(Base):
+    __tablename__ = 'locations'
+    id = Column(Integer, primary_key=True)
+    place = Column(String)
+    country = Column(String(50))
+    city = Column(String(50))
+    distance = Column(Integer)
+
+
+class Visit(Base):
+    __tablename__ = 'visits'
+    id = Column(Integer, primary_key=True)
+    location = Column(Integer, ForeignKey('locations.id'))
+    user = Column(Integer, ForeignKey('users.id'))
+    visited_at = Column(Integer)
+    mark = Column(SmallInteger)
