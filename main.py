@@ -69,14 +69,14 @@ class UsersView(APIMixin, web.View):
     async def get_user_visits(self, id):
         try:
             from_date = self.request.url.query.get('fromDate')
-            if from_date:
+            if from_date is not None:
                 from_date = int(from_date)
             to_date = self.request.url.query.get('toDate')
-            if to_date:
+            if to_date is not None:
                 to_date = int(to_date)
             country = self.request.url.query.get('country')
             to_distance = self.request.url.query.get('toDistance')
-            if to_distance:
+            if to_distance is not None:
                 to_distance = int(to_distance)
         except ValueError as e:
             raise web.HTTPBadRequest from e
@@ -89,15 +89,15 @@ class UsersView(APIMixin, web.View):
                            ).where(and_(
                                Visit.user == id,
                                Visit.location == Location.id))
-            if from_date:
+            if from_date is not None:
                 query = query.where(Visit.visited_at > from_date)
-            if to_date:
+            if to_date is not None:
                 query = query.where(Visit.visited_at < to_date)
-            if country:
+            if country is not None:
                 # I have no idea what I'm doing.jpg
                 query = query.select_from(join(Visit, Location,
                                                Location.country == country))
-            if to_distance:
+            if to_distance is not None:
                 query = query.where(Location.distance < to_distance)
             rows = await conn.execute(query.order_by(Visit.visited_at))
             visits = await rows.fetchall()
