@@ -108,17 +108,15 @@ RUN apk add --no-cache dumb-init && \
     mkdir -p "$PGDATA" && chown -R postgres:postgres "$PGDATA" && chmod 777 "$PGDATA"
 
 
-VOLUME /var/lib/postgresql/data
+EXPOSE 80
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ./start.sh
 
 COPY requirements.txt /usr/src/app/
 
 RUN pip install --no-cache-dir -r /usr/src/app/requirements.txt && \
     apk del .build-deps
-
-EXPOSE 80
-
-ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ./start.sh
 
 COPY . /usr/src/app
 WORKDIR /usr/src/app
