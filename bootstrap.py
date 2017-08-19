@@ -110,7 +110,7 @@ def main():
             ''')
 
         sql.close()
-        res = subprocess.call(['psql',
+        res = subprocess.call(['/usr/src/app/wait-for-postgres.sh', 'psql',
                                '-q', '-d', 'default', '-1', '-f', sql.name])
         if res != 0:
             return res

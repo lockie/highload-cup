@@ -7,5 +7,5 @@ while ! pg_isready -h /var/run/postgresql -d default > /dev/null; do
 	sleep 1
 done
 
-sleep 3
+sleep 1
 exec "$@"
