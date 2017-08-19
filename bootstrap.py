@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-import glob
 import json
-from os.path import join, basename, splitext
+from os.path import splitext
 import sys
 import subprocess
 import tempfile
@@ -12,12 +11,8 @@ import zipfile
 
 def main():
     start = time.time()
-    with tempfile.TemporaryDirectory() as directory, \
-            open(join(directory, 'data.sql'), 'w') as sql:
-        data = zipfile.ZipFile('/tmp/data/data.zip', 'r')
-        data.extractall(directory)
-        data.close()
 
+    with tempfile.NamedTemporaryFile(mode='w', delete=False) as sql:
         sql.write('''
             CREATE TABLE locations (
                 id integer NOT NULL,
@@ -42,25 +37,22 @@ def main():
                 mark smallint
             );
             ''')
+        with zipfile.ZipFile('/tmp/data/data.zip', 'r') as data:
+            for filename in data.namelist():
+                kind = splitext(filename)[0].split('_')[0]
+                rows = json.loads(data.read(filename))
+                # XXX assuming key order is the same throughout the file
+                columns = ','.join(rows[kind][0].keys())
+                if kind == 'visits':
+                    # сраный Postgres с его сраным синтаксисом
+                    columns = columns.replace('user', '"user"')
+                sql.write('COPY ' + kind + '(' +
+                          columns + ') FROM STDIN (FORMAT csv);\n')
+                stdin = ""
+                for row in rows[kind]:
+                    stdin += ','.join(map(str, row.values())) + '\n'
+                sql.write(stdin + '\\.\n\n')
 
-        for filename in glob.glob(join(directory, '*.json')):
-            kind = splitext(basename(filename))[0].split('_')[0]
-
-            with open(filename, 'r') as f:
-                data = json.load(f)
-            # XXX assuming key order is the same throughout the file
-            columns = ','.join(data[kind][0].keys())
-            if kind == 'visits':
-                # сраный Postgres с его сраным синтаксисом
-                columns = columns.replace('user', '"user"')
-            sql.write('COPY ' + kind + '(' +
-                      columns + ') FROM STDIN (FORMAT csv);\n')
-            for row in data[kind]:
-                sql.write(','.join([str(value) for value in row.values()]))
-                sql.write('\n')
-            sql.write('\\.\n\n')
-
-        # print('Pre-processing took ' + str(time.time() - start) + 's')
         sql.write('''
             CREATE SEQUENCE locations_id_seq
                 INCREMENT BY 1
@@ -109,13 +101,12 @@ def main():
             ANALYZE;
             ''')
 
-        sql.close()
-        res = subprocess.call(['/usr/src/app/wait-for-postgres.sh', 'psql',
-                               '-q', '-d', 'default', '-1', '-f', sql.name])
-        if res != 0:
-            return res
+    res = subprocess.call(['/usr/src/app/wait-for-postgres.sh', 'psql',
+                            '-q', '-d', 'default', '-1', '-f', sql.name])
+    if res != 0:
+        return res
 
-    print('Processing took ' + str(time.time() - start) + 's')
+    print('Bootstrapping took ' + str(time.time() - start) + 's')
     return 0
 
 

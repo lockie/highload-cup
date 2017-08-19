@@ -80,19 +80,18 @@ if [ "$1" = 'postgres' ]; then
 		# does not listen on external TCP/IP and waits until start finishes
 		PGUSER="${PGUSER:-postgres}" \
 		pg_ctl -D "$PGDATA" \
-			-o "-c listen_addresses='localhost'" \
+			-o "-c listen_addresses=''" \
 			-w start
 
 		file_env 'POSTGRES_USER' 'postgres'
 		file_env 'POSTGRES_DB' "$POSTGRES_USER"
 
-		psql=( psql -v ON_ERROR_STOP=1 )
+		psql=( psql -q -v ON_ERROR_STOP=1 )
 
 		if [ "$POSTGRES_DB" != 'postgres' ]; then
 			"${psql[@]}" --username postgres <<-EOSQL
 				CREATE DATABASE "$POSTGRES_DB" ;
 			EOSQL
-			echo
 		fi
 
 		if [ "$POSTGRES_USER" = 'postgres' ]; then
@@ -103,28 +102,12 @@ if [ "$1" = 'postgres' ]; then
 		"${psql[@]}" --username postgres <<-EOSQL
 			$op USER "$POSTGRES_USER" WITH SUPERUSER $pass ;
 		EOSQL
-		echo
 
 		psql+=( --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" )
-
-		echo
-		for f in /docker-entrypoint-initdb.d/*; do
-			case "$f" in
-				*.sh)     echo "$0: running $f"; . "$f" ;;
-				*.sql)    echo "$0: running $f"; "${psql[@]}" -f "$f"; echo ;;
-				*.sql.gz) echo "$0: running $f"; gunzip -c "$f" | "${psql[@]}"; echo ;;
-				*)        echo "$0: ignoring $f" ;;
-			esac
-			echo
-		done
 
 		cp postgresql.conf "$PGDATA"
 		PGUSER="${PGUSER:-postgres}" \
 		pg_ctl -D "$PGDATA" -m fast -w stop
-
-		echo
-		echo 'PostgreSQL init process complete; ready for start up.'
-		echo
 	fi
 fi
 
