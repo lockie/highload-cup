@@ -118,6 +118,7 @@ if [ "$1" = 'postgres' ]; then
 			echo
 		done
 
+		cp postgresql.conf "$PGDATA"
 		PGUSER="${PGUSER:-postgres}" \
 		pg_ctl -D "$PGDATA" -m fast -w stop
 
