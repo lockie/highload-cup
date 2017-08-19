@@ -158,47 +158,53 @@ class LocationsView(APIMixin, web.View):
             return web.json_response({})
 
     async def get_location_avg(self, id):
-        raise web.HTTPNotImplemented
         try:
             from_date = self.request.url.query.get('fromDate')
-            if from_date:
+            if from_date is not None:
                 from_date = int(from_date)
             to_date = self.request.url.query.get('toDate')
-            if to_date:
+            if to_date is not None:
                 to_date = int(to_date)
             from_age = self.request.url.query.get('fromAge')
-            if from_age:
+            if from_age is not None:
                 from_age = int(from_age)
             to_age = self.request.url.query.get('toAge')
-            if to_age:
+            if to_age is not None:
                 to_age = int(to_age)
             gender = self.request.url.query.get('gender')
         except ValueError as e:
             raise web.HTTPBadRequest from e
         async with self.request.app['engine'].acquire() as conn:
-            query = select([Visit.mark]).where(Visit.location == id)
-            if from_date:
+            row = await conn.execute(select([exists().where(Location.id == id)]))
+            exists_ = await row.scalar()
+            if not exists_:
+                raise web.HTTPNotFound
+
+            query = select([func.avg(Visit.mark)]).where(Visit.location == id)
+            if from_date is not None:
                 query = query.where(Visit.visited_at > from_date)
-            if to_date:
+            if to_date is not None:
                 query = query.where(Visit.visited_at < to_date)
-            if from_age or to_age or gender:
+            if from_age is not None or to_age is not None or gender is not None:
                 expr = None
-                if from_age:
-                    # TODO : no idea of how to properly do it.
-                    #  text() is not working, "can't adapt type 'TextClause'"
-                    age = func.sum(func.current_timestamp() - User.birth_date)
-                    expr = and_(expr, age > from_age) \
-                        if expr else age > from_age
-                if to_age:
-                    age = func.sum(func.current_timestamp() - User.birth_date)
-                    expr = and_(expr, age < to_age) \
-                        if expr else age < to_age
-                if gender:
-                    expr = and_(expr, User.gender == gender)  # XXX doc unclear
+                # see https://stackoverflow.com/a/10258706/1336774
+                if from_age is not None:
+                    expr = (func.to_timestamp(User.birth_date) < func.now() -
+                            text("'%d years'::interval" % from_age))
+                if to_age is not None:
+                    e = (func.to_timestamp(User.birth_date) > func.now() -
+                         text("'%d years'::interval" % to_age))
+                    expr = and_(expr, e) if expr is not None else e
+                if gender is not None:
+                    e = User.gender == gender
+                    expr = and_(expr, e) if expr is not None else e
+                # XXX something is wrong here
                 query = query.select_from(join(Visit, User, expr))
-            print(query)
-            await conn.execute(query)
-            return web.json_response({'avg': 0})
+            row = await conn.execute(query)
+            avg = await row.scalar()
+            if avg is None:
+                return web.json_response({'avg': 0.0})
+            return web.json_response({'avg': float(round(avg, 5).normalize())})
 
 
 class VisitsView(APIMixin, web.View):
