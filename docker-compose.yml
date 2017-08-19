@@ -4,7 +4,7 @@ volumes:
 services:
     main:
         build: .
-        image: stor.highloadcup.ru/travels/keen_coati:main
+        image: stor.highloadcup.ru/travels/keen_coati:latest
         volumes:
             - database:/var/lib/postgresql/data
             - ./data:/tmp/data
