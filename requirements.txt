@@ -1,4 +1,5 @@
 aiohttp==2.2.5
+aiomcache==0.5.2
 aiopg==0.13.0
 psycopg2==2.7.3
 SQLAlchemy==1.1.13

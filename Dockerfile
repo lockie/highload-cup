@@ -12,8 +12,55 @@ ENV PATH /usr/lib/postgresql/$PG_MAJOR/bin:$PATH
 ENV PGDATA /var/lib/postgresql/data
 ENV POSTGRES_USER root
 ENV POSTGRES_DB default
+ENV MEMCACHED_VERSION 1.5.0
+ENV MEMCACHED_SHA1 e12af93e63c05ab7e89398e4cfd0bfc7b7bff1c5
 
 RUN apk add --no-cache dumb-init && \
+    # install memcached, see docker-libary memcached/alpine/Dockerfile
+    adduser -D memcache && \
+    set -x \
+    \
+    && apk add --no-cache --virtual .memcached-build-deps \
+        ca-certificates \
+        coreutils \
+        cyrus-sasl-dev \
+        dpkg-dev dpkg \
+        gcc \
+        libc-dev \
+        libevent-dev \
+        libressl \
+        linux-headers \
+        make \
+        perl \
+        perl-utils \
+        tar \
+    \
+    && wget -O memcached.tar.gz "https://memcached.org/files/memcached-$MEMCACHED_VERSION.tar.gz" \
+    && echo "$MEMCACHED_SHA1  memcached.tar.gz" | sha1sum -c - \
+    && mkdir -p /usr/src/memcached \
+    && tar -xzf memcached.tar.gz -C /usr/src/memcached --strip-components=1 \
+    && rm memcached.tar.gz \
+    \
+    && cd /usr/src/memcached \
+    \
+    && ./configure \
+        --build="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
+        --enable-sasl \
+    && make -j "$(nproc)" \
+    \
+    && make install \
+    \
+    && cd / && rm -rf /usr/src/memcached \
+    \
+    && runDeps="$( \
+        scanelf --needed --nobanner --recursive /usr/local \
+            | awk '{ gsub(/,/, "\nso:", $2); print "so:" $2 }' \
+            | sort -u \
+            | xargs -r apk info --installed \
+            | sort -u \
+    )" \
+    && apk add --virtual .memcached-rundeps $runDeps \
+    && \
     # install postgres, see docker-library postgres/9.6/alpine/Dockerfile
     set -ex; \
     postgresHome="$(getent passwd postgres)"; \
@@ -37,7 +84,7 @@ RUN apk add --no-cache dumb-init && \
           --strip-components 1 \
       && rm postgresql.tar.bz2 \
       \
-      && apk add --no-cache --virtual .build-deps \
+      && apk add --no-cache --virtual .postgres-build-deps \
           bison \
           coreutils \
           dpkg-dev dpkg \
@@ -117,7 +164,8 @@ COPY requirements.txt /usr/src/app/
 
 RUN pip install --no-cache-dir -r /usr/src/app/requirements.txt && \
     python -O -m compileall -q /usr/src/app /usr/local/lib/python3.6 && \
-    apk del .build-deps
+    apk del .postgres-build-deps .memcached-build-deps
+
 
 COPY . /usr/src/app
 WORKDIR /usr/src/app

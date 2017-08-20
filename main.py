@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from aiohttp import web
+import aiomcache
 from aiopg.sa import create_engine
 import asyncio
 import json
@@ -16,6 +17,12 @@ class APIMixin:
             return int(self.request.match_info['id'])
         except ValueError as e:
             raise web.HTTPNotFound from e
+
+    def cache_key(self, id):
+        return (self.model.__name__ + str(id)).encode('utf8')
+
+    def deserialize(self, obj):
+        return dict(zip(obj, obj.as_tuple()))
 
     def get_int_param(self, name):
         param = self.request.url.query.get(name)
@@ -36,18 +43,27 @@ class APIMixin:
         return obj
 
     async def get_instance(self, id):
-        async with self.request.app['engine'].acquire() as conn:
-            row = await conn.execute(
-                select([self.model]).where(self.model.id == id))
-            obj = await row.first()
-            if not obj:
-                raise web.HTTPNotFound
-            return web.json_response(dict(zip(obj, obj.as_tuple())))
+        cached = await self.request.app['memcache'].get(self.cache_key(id))
+        if cached:
+            return web.Response(body=cached,
+                                content_type='application/json',
+                                charset='utf-8')
+        else:
+            async with self.request.app['engine'].acquire() as conn:
+                row = await conn.execute(
+                    select([self.model]).where(self.model.id == id))
+                obj = await row.first()
+                if not obj:
+                    raise web.HTTPNotFound
+                response = web.json_response(self.deserialize(obj))
+                await self.request.app['memcache'].set(self.cache_key(id),
+                                                       response.body)
+                return response
 
     async def get_method(self, id, method):
         raise web.HTTPBadRequest
 
-    async def add_object(self):
+    async def add_instance(self):
         obj = await self.get_object()
         async with self.request.app['engine'].acquire() as conn:
             row = await conn.execute(
@@ -55,10 +71,15 @@ class APIMixin:
             exists_ = await row.scalar()
             if exists_:
                 raise web.HTTPBadRequest
-            await conn.execute(insert(self.model).values(**obj))
+            row = await conn.execute(insert(
+                self.model, returning=self.model.__table__.c).values(**obj))
+            new = await row.first()
+            await self.request.app['memcache'].set(
+                self.cache_key(new['id']),
+                json.dumps(self.deserialize(new)).encode('utf8'))
             return web.json_response({})
 
-    async def change_object(self, id):
+    async def change_instance(self, id):
         async with self.request.app['engine'].acquire() as conn:
             row = await conn.execute(
                 select([exists().where(self.model.id == id)]))
@@ -66,8 +87,13 @@ class APIMixin:
             if not exists_:
                 raise web.HTTPNotFound
             obj = await self.get_object()
-            await conn.execute(
-                update(self.model).where(self.model.id == id).values(**obj))
+            row = await conn.execute(update(
+                    self.model, returning=self.model.__table__.c
+                ).where(self.model.id == id).values(**obj))
+            changed = await row.first()
+            await self.request.app['memcache'].set(
+                self.cache_key(id),
+                json.dumps(self.deserialize(changed)).encode('utf8'))
             return web.json_response({})
 
     async def get(self):
@@ -85,8 +111,8 @@ class APIMixin:
         if tail:
             raise web.HTTPBadRequest
         if self.request.match_info['id'] == 'new':
-            return await self.add_object()
-        return await self.change_object(self.get_id())
+            return await self.add_instance()
+        return await self.change_instance(self.get_id())
 
 
 class UsersView(APIMixin, web.View):
@@ -122,7 +148,7 @@ class UsersView(APIMixin, web.View):
                 visits = await rows.fetchall()
                 return web.json_response(
                     {'visits':
-                     [dict(zip(visit, visit.as_tuple())) for visit in visits]})
+                     [self.deserialize(visit) for visit in visits]})
 
 
 class LocationsView(APIMixin, web.View):
@@ -185,6 +211,7 @@ app.router.add_route('*', '/locations/{id}{tail:.*}', LocationsView)
 app.router.add_route('*', '/visits/{id}{tail:.*}', VisitsView)
 
 app['engine'] = loop.run_until_complete(
-    create_engine('dbname=default user=root', minsize=64, maxsize=64))
+    create_engine('dbname=default user=root', minsize=63, maxsize=63))
+app['memcache'] = aiomcache.Client('127.0.0.1', pool_size=990, loop=loop)
 
 web.run_app(app, port=80)
