@@ -44,7 +44,7 @@ if [ "$1" = 'postgres' ] && [ "$(id -u)" = '0' ]; then
 		chmod 700 "$POSTGRES_INITDB_XLOGDIR"
 	fi
 
-	exec su-exec postgres "$BASH_SOURCE" "$@"
+	exec su-exec postgres "$BASH_SOURCE" "$@" > /dev/null 2>&1
 fi
 
 if [ "$1" = 'postgres' ]; then
@@ -58,7 +58,7 @@ if [ "$1" = 'postgres' ]; then
 		if [ "$POSTGRES_INITDB_XLOGDIR" ]; then
 			export POSTGRES_INITDB_ARGS="$POSTGRES_INITDB_ARGS --xlogdir $POSTGRES_INITDB_XLOGDIR"
 		fi
-		eval "initdb --username=postgres $POSTGRES_INITDB_ARGS"
+		eval "initdb --username=postgres $POSTGRES_INITDB_ARGS > /dev/null 2>&1"
 
 		# check password first so we can output the warning before postgres
 		# messes it up

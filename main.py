@@ -270,6 +270,6 @@ app.router.add_route('*', '/locations/{id}{tail:.*}', LocationsView)
 app.router.add_route('*', '/visits/{id}{tail:.*}', VisitsView)
 
 app['engine'] = loop.run_until_complete(
-    create_engine('dbname=default user=root', minsize=16, maxsize=16))
+    create_engine('dbname=default user=root', minsize=64, maxsize=64))
 
 web.run_app(app, port=80)
