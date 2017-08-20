@@ -9,6 +9,7 @@ from sqlalchemy.sql import (insert, select, update, exists, join, func,
 from models import User, Location, Visit
 
 
+# TODO : REFACTOR!
 class APIMixin:
     def get_id(self):
         try:
@@ -16,6 +17,15 @@ class APIMixin:
             return int(self.request.match_info['id'])
         except ValueError as e:
             raise web.HTTPNotFound from e
+
+    async def get_object(self):
+        try:
+            obj = await self.request.json()
+        except json.JSONDecodeError as e:
+            raise web.HTTPBadRequest from e
+        if None in obj.values():
+            raise web.HTTPBadRequest
+        return obj
 
 
 class UsersView(APIMixin, web.View):
@@ -50,19 +60,18 @@ class UsersView(APIMixin, web.View):
             exists_ = await row.scalar()
             if not exists_:
                 raise web.HTTPNotFound
-            try:
-                obj = await self.request.json()
-            except json.JSONDecodeError as e:
-                raise web.HTTPBadRequest from e
+            obj = await self.get_object()
             await conn.execute(update(User).where(User.id == id).values(**obj))
             return web.json_response({})
 
     async def add_user(self):
-        try:
-            obj = await self.request.json()
-        except json.JSONDecodeError as e:
-            raise web.HTTPBadRequest from e
+        obj = await self.get_object()
         async with self.request.app['engine'].acquire() as conn:
+            row = await conn.execute(select([exists().where(User.id == obj.get(id, 0))]))
+            exists_ = await row.scalar()
+            if exists_:
+                raise web.HTTPBadRequest
+
             await conn.execute(insert(User).values(**obj))
             return web.json_response({})
 
@@ -140,20 +149,19 @@ class LocationsView(APIMixin, web.View):
             exists_ = await row.scalar()
             if not exists_:
                 raise web.HTTPNotFound
-            try:
-                obj = await self.request.json()
-            except json.JSONDecodeError as e:
-                raise web.HTTPBadRequest from e
+            obj = await self.get_object()
             await conn.execute(update(Location).where(
                 Location.id == id).values(**obj))
             return web.json_response({})
 
     async def add_location(self):
-        try:
-            obj = await self.request.json()
-        except json.JSONDecodeError as e:
-            raise web.HTTPBadRequest from e
+        obj = await self.get_object()
         async with self.request.app['engine'].acquire() as conn:
+            row = await conn.execute(select([exists().where(Location.id == obj.get('id', 0))]))
+            exists_ = await row.scalar()
+            if exists_:
+                raise web.HTTPBadRequest
+
             await conn.execute(insert(Location).values(**obj))
             return web.json_response({})
 
@@ -172,6 +180,8 @@ class LocationsView(APIMixin, web.View):
             if to_age is not None:
                 to_age = int(to_age)
             gender = self.request.url.query.get('gender')
+            if gender is not None and gender not in ['m', 'f']:
+                raise web.HTTPBadRequest
         except ValueError as e:
             raise web.HTTPBadRequest from e
         async with self.request.app['engine'].acquire() as conn:
@@ -237,19 +247,18 @@ class VisitsView(APIMixin, web.View):
             exists_ = await row.scalar()
             if not exists_:
                 raise web.HTTPNotFound
-            try:
-                obj = await self.request.json()
-            except json.JSONDecodeError as e:
-                raise web.HTTPBadRequest from e
+            obj = await self.get_object()
             await conn.execute(update(Visit).where(Visit.id == id).values(**obj))
             return web.json_response({})
 
     async def add_visit(self):
-        try:
-            obj = await self.request.json()
-        except json.JSONDecodeError as e:
-            raise web.HTTPBadRequest from e
+        obj = await self.get_object()
         async with self.request.app['engine'].acquire() as conn:
+            row = await conn.execute(select([exists().where(Visit.id == obj.get('id', 0))]))
+            exists_ = await row.scalar()
+            if exists_:
+                raise web.HTTPBadRequest
+
             await conn.execute(insert(Visit).values(**obj))
             return web.json_response({})
 
