@@ -196,20 +196,19 @@ class LocationsView(APIMixin, web.View):
             if to_date is not None:
                 query = query.where(Visit.visited_at < to_date)
             if from_age is not None or to_age is not None or gender is not None:
-                expr = None
+                query = query.select_from(join(
+                    Visit, User, Visit.user == User.id))
                 # see https://stackoverflow.com/a/10258706/1336774
                 if from_age is not None:
-                    expr = (func.to_timestamp(User.birth_date) < func.now() -
-                            text("'%d years'::interval" % from_age))
+                    query = query.where(
+                        func.to_timestamp(User.birth_date) < func.now() -
+                        text("'%d years'::interval" % from_age))
                 if to_age is not None:
-                    e = (func.to_timestamp(User.birth_date) > func.now() -
-                         text("'%d years'::interval" % to_age))
-                    expr = and_(expr, e) if expr is not None else e
+                    query = query.where(
+                        func.to_timestamp(User.birth_date) > func.now() -
+                        text("'%d years'::interval" % to_age))
                 if gender is not None:
-                    e = User.gender == gender
-                    expr = and_(expr, e) if expr is not None else e
-                # XXX something is wrong here
-                query = query.select_from(join(Visit, User, expr))
+                    query = query.where(User.gender == gender)
             row = await conn.execute(query)
             avg = await row.scalar()
             if avg is None:
