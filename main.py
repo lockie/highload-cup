@@ -5,6 +5,7 @@ import aiomcache
 from aiopg.sa import create_engine
 import asyncio
 import json
+import psycopg2
 from sqlalchemy.sql import (insert, select, update, exists, join, func,
                             text, and_)
 from models import User, Location, Visit
@@ -71,8 +72,11 @@ class APIMixin:
             exists_ = await row.scalar()
             if exists_:
                 raise web.HTTPBadRequest
-            row = await conn.execute(insert(
-                self.model, returning=self.model.__table__.c).values(**obj))
+            try:
+                row = await conn.execute(insert(
+                    self.model, returning=self.model.__table__.c).values(**obj))
+            except psycopg2.IntegrityError as e:
+                raise web.HTTPBadRequest from e
             new = await row.first()
             await self.request.app['memcache'].set(
                 self.cache_key(new['id']),
@@ -87,9 +91,12 @@ class APIMixin:
             if not exists_:
                 raise web.HTTPNotFound
             obj = await self.get_object()
-            row = await conn.execute(update(
+            try:
+                row = await conn.execute(update(
                     self.model, returning=self.model.__table__.c
                 ).where(self.model.id == id).values(**obj))
+            except psycopg2.IntegrityError as e:
+                raise web.HTTPBadRequest from e
             changed = await row.first()
             await self.request.app['memcache'].set(
                 self.cache_key(id),
