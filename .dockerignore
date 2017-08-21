@@ -3,3 +3,5 @@ data/
 __pycache__
 .git
 .gitignore
+core
+urls.txt

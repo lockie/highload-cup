@@ -94,3 +94,5 @@ ENV/
 ####
 
 data/
+core
+urls.txt

@@ -1,0 +1,12 @@
+verbose = false
+gmethod = GET
+logfile = /tmp/siege.log
+#connection = keep-alive
+limit = 1000
+concurrent = 250
+time = 7M
+file = urls.txt
+internet = false
+timeout = 2
+benchmark = true
+failures = 100000
