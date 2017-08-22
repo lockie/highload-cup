@@ -1,0 +1,3 @@
+[submodule "c/vendor/libevent"]
+	path = c/vendor/libevent
+	url = https://github.com/libevent/libevent
