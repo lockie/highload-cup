@@ -2,11 +2,18 @@ version: '3'
 volumes:
     database:
 services:
-    main:
-        build: .
+    python:
+        build: python
         image: stor.highloadcup.ru/travels/keen_coati:latest
         volumes:
             - database:/var/lib/postgresql/data
+            - ./data:/tmp/data
+        ports:
+            - "80:80"
+    c:
+        build: c
+        image: stor.highloadcup.ru/travels/clear_sparrow:latest
+        volumes:
             - ./data:/tmp/data
         ports:
             - "80:80"
