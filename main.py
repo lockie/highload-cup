@@ -8,6 +8,7 @@ import json
 import psycopg2
 from sqlalchemy.sql import (insert, select, update, exists, join, func,
                             text, and_)
+
 from models import User, Location, Visit
 
 
@@ -210,15 +211,35 @@ class VisitsView(APIMixin, web.View):
     model = Visit
 
 
-loop = asyncio.get_event_loop()
-app = web.Application(loop=loop)
+@asyncio.coroutine
+def database_middleware(app, handler):
+    @asyncio.coroutine
+    def middleware(request):
+        if app.get('engine') is None:
+            engine = yield from create_engine(
+                'dbname=default user=root', minsize=1, maxsize=8)
+            app['engine'] = engine
+        return (yield from handler(request))
+    return middleware
+
+
+@asyncio.coroutine
+def cache_middleware(app, handler):
+    @asyncio.coroutine
+    def middleware(request):
+        if app.get('memcache') is None:
+            memcache = aiomcache.Client(
+                '127.0.0.1', pool_size=64, loop=app.loop)
+            app['memcache'] = memcache
+        return (yield from handler(request))
+    return middleware
+
+app = web.Application(middlewares=[database_middleware, cache_middleware])
 
 app.router.add_route('*', '/users/{id}{tail:.*}', UsersView)
 app.router.add_route('*', '/locations/{id}{tail:.*}', LocationsView)
 app.router.add_route('*', '/visits/{id}{tail:.*}', VisitsView)
 
-app['engine'] = loop.run_until_complete(
-    create_engine('dbname=default user=root', minsize=63, maxsize=63))
-app['memcache'] = aiomcache.Client('127.0.0.1', pool_size=990, loop=loop)
 
-web.run_app(app, port=80)
+if __name__ == '__main__':
+    web.run_app(app, port=80)
