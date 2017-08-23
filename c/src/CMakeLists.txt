@@ -10,12 +10,20 @@ endif ()
 
 set(CMAKE_DEBUG_POSTFIX "_d")
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffunction-sections")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic -ffunction-sections")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
 set(SRCS
   ./main.c
 )
+
+# add assembler listing
+foreach(FILE ${SRCS})
+  get_filename_component(NAME ${FILE} NAME_WE)
+  set_source_files_properties (${FILE}
+    PROPERTIES
+    COMPILE_FLAGS "-fverbose-asm -masm=intel -Wa,-adhln=${NAME}.s")
+endforeach(FILE in ${SRCS})
 
 include_directories(
   ${LIBEVENT_INCLUDE_DIRS}

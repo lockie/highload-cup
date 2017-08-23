@@ -1,0 +1,6 @@
+-Ivendor/libevent/include
+-Ibuild/vendor/libevent/include
+-DNDEBUG
+-Wall
+-Wextra
+-pedantic
