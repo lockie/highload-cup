@@ -5,7 +5,6 @@ project(HighloadCup LANGUAGES C)
 add_compile_options(-march=sandybridge -fomit-frame-pointer -pipe)
 
 # Libevent #####################################################################
-set(EVENT__DISABLE_DEBUG_MODE ON CACHE BOOL "")
 set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "")
 set(EVENT__DISABLE_BENCHMARK ON CACHE BOOL "")
 set(EVENT__DISABLE_TESTS ON CACHE BOOL "")

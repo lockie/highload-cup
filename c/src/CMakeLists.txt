@@ -10,7 +10,7 @@ endif ()
 
 set(CMAKE_DEBUG_POSTFIX "_d")
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic -ffunction-sections")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 -Wall -Wextra -pedantic -ffunction-sections")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
 set(SRCS
