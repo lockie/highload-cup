@@ -15,5 +15,8 @@ services:
         image: stor.highloadcup.ru/travels/clear_sparrow:latest
         volumes:
             - ./data:/tmp/data
+            - ./c:/usr/src/app  # XXX debug
         ports:
             - "80:80"
+            - "8080:8080"
+

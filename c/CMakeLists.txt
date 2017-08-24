@@ -25,6 +25,7 @@ set(CMAKE_C_FLAGS_MINSIZEREL
 
 
 # Libevent #####################################################################
+set(EVENT__DISABLE_THREAD_SUPPORT OFF CACHE BOOL "")
 set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "")
 set(EVENT__DISABLE_BENCHMARK ON CACHE BOOL "")
 set(EVENT__DISABLE_TESTS ON CACHE BOOL "")

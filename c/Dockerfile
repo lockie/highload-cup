@@ -12,5 +12,5 @@ COPY . /usr/src/app
 WORKDIR /usr/src/app
 
 RUN mkdir /usr/src/app/build && cd /usr/src/app/build && \
-    cmake .. && make && cp server .. && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && make && cp server .. && \
     apk del .builddeps
