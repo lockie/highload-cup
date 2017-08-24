@@ -2,7 +2,7 @@ FROM alpine:3.6
 
 ENV LANG en_US.utf8
 
-RUN apk add --no-cache --virtual .builddeps gcc make cmake musl-dev
+RUN apk add --no-cache --virtual .builddeps gcc tcl make cmake musl-dev file
 
 EXPOSE 80
 

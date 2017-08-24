@@ -15,6 +15,8 @@
 
 #include <cJSON.h>
 
+#include <sqlite3.h>
+
 
 /* I have no idea what I'm doing.png */
 /* https://stackoverflow.com/a/10119699/1336774 */
@@ -383,6 +385,9 @@ int main(int argc, char** argv)
     setup_signals();
 
     cJSON_InitHooks(NULL);
+
+    struct sqlite3* db;
+    VERIFY_ZERO(sqlite3_open(":memory:", &db));
 
 #ifndef NDEBUG
     event_enable_debug_mode();

@@ -1,6 +1,7 @@
 -Ivendor/libevent/include
 -Ivendor/cJSON
 -Ibuild/vendor/libevent/include
+-Ibuild/sqlite
 -DNDEBUG
 -Wall
 -Wextra
