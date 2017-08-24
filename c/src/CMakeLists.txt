@@ -27,9 +27,10 @@ endforeach(FILE in ${SRCS})
 
 include_directories(
   ${LIBEVENT_INCLUDE_DIRS}
+  "${CMAKE_SOURCE_DIR}/vendor/cJSON"
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 add_executable(server ${SRCS})
-target_link_libraries(server event_static)
+target_link_libraries(server event_static cjson)

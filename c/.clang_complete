@@ -1,4 +1,5 @@
 -Ivendor/libevent/include
+-Ivendor/cJSON
 -Ibuild/vendor/libevent/include
 -DNDEBUG
 -Wall

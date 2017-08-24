@@ -13,6 +13,8 @@
 #include <event2/buffer.h>
 #include <event2/keyvalq_struct.h>
 
+#include <cJSON.h>
+
 
 /* I have no idea what I'm doing.png */
 /* https://stackoverflow.com/a/10119699/1336774 */
@@ -98,6 +100,7 @@ cleanup:
 #define PROCESS_RESULT_OK 0
 #define PROCESS_RESULT_BAD_REQUEST 1
 #define PROCESS_RESULT_NOT_FOUND 2
+#define PROCESS_RESULT_ERROR 3
 
 struct parameters_t
 {
@@ -133,7 +136,27 @@ static int process_entity(const char* entity, int id, int method, int write,
 {
     if(write)
     {
+        cJSON* root = cJSON_Parse(body);
+        if(!root)
+        {
+            *response = strdup("failed to parse JSON");
+            return PROCESS_RESULT_ERROR;
+        }
+
+        if(id == -1)
+        {
+            cJSON* json_id = cJSON_GetObjectItemCaseSensitive(root, "id");
+            if(!json_id || !cJSON_IsNumber(json_id))
+            {
+                *response = strdup("failed to get id");
+                return PROCESS_RESULT_BAD_REQUEST;
+            }
+        }
+
         /* TODO : actual writing */
+
+        cJSON_Delete(root);
+
         *response = strdup("{}");
         return PROCESS_RESULT_OK;
     }
@@ -335,6 +358,7 @@ error:
         handle_not_found(req);
         break;
 
+    case PROCESS_RESULT_ERROR:
     default:
         goto cleanup;
     }
@@ -357,6 +381,8 @@ int main(int argc, char** argv)
     (void)argv;
 
     setup_signals();
+
+    cJSON_InitHooks(NULL);
 
 #ifndef NDEBUG
     event_enable_debug_mode();

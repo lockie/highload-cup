@@ -1,3 +1,6 @@
 [submodule "c/vendor/libevent"]
 	path = c/vendor/libevent
 	url = https://github.com/libevent/libevent
+[submodule "c/vendor/cJSON"]
+	path = c/vendor/cJSON
+	url = https://github.com/DaveGamble/cJSON
