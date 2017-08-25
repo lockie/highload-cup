@@ -288,6 +288,7 @@ static void request_handler(struct evhttp_request* req, void* arg)
             const char* gender = evhttp_find_header(&query, "toAge");
             if(gender && strlen(gender) != 2)
             {
+                evhttp_clear_headers(&query);
                 handle_bad_request(req, "invalid gender parameter value");
                 return;
             }
@@ -316,9 +317,12 @@ static void request_handler(struct evhttp_request* req, void* arg)
                     evhttp_find_header(&query, "toAge"), &e);
                 if(e) goto error;
                 params.gender = gender ? gender[0] : 0;
+
+                evhttp_clear_headers(&query);
                 break;
 
 error:
+                evhttp_clear_headers(&query);
                 handle_bad_request(req, "invalid integer query parameter");
                 return;
             }
@@ -350,6 +354,7 @@ error:
         out_buf = evbuffer_new();
         evbuffer_add(out_buf, response, strlen(response));
         evhttp_send_reply(req, HTTP_OK, "OK", out_buf);
+        evbuffer_free(out_buf);
         break;
 
     case PROCESS_RESULT_BAD_REQUEST:
