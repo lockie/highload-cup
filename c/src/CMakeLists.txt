@@ -4,16 +4,21 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall -Wextra -pedantic")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
 set(SRCS
-  ./main.c
+  main.c
+  database.c
+  request.c
+  entity.c
 )
 
 # add assembler listing
-foreach(FILE ${SRCS})
-  get_filename_component(NAME ${FILE} NAME_WE)
-  set_source_files_properties (${FILE}
-    PROPERTIES
-    COMPILE_FLAGS "-fverbose-asm -masm=intel -Wa,-adhln=${NAME}.s")
-endforeach(FILE in ${SRCS})
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  foreach(FILE ${SRCS})
+    get_filename_component(NAME ${FILE} NAME_WE)
+    set_source_files_properties (${FILE}
+      PROPERTIES
+      COMPILE_FLAGS "-fverbose-asm -masm=intel -Wa,-adhln=${NAME}.s")
+  endforeach(FILE in ${SRCS})
+endif()
 
 include_directories(
   ${LIBEVENT_INCLUDE_DIRS}
