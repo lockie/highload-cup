@@ -9,6 +9,7 @@
 
 #include "database.h"
 #include "request.h"
+#include "utils.h"
 
 
 static void terminate_handler(int signum)
@@ -36,7 +37,7 @@ int main(int argc, char** argv)
 
     sqlite3* db;
     VERIFY_ZERO(sqlite3_open(":memory:", &db));
-    VERIFY_ZERO(bootstrap(db));
+    MEASURE_DURATION(VERIFY_ZERO(bootstrap(db)), "Bootstrapping");
 
 #ifndef NDEBUG
     event_enable_debug_mode();

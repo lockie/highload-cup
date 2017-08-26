@@ -42,6 +42,130 @@ INSERT INTO users (id, email, first_name, last_name, gender, birth_date)
 VALUES (?, ?, ?, ?, ?, ?);
 )";
 
+int insert_users(cJSON* users, sqlite3_stmt* stmt)
+{
+    int rc = 0;
+    for(cJSON* user = users->child; user; user = user->next)
+    {
+        CHECK_SQL(sqlite3_bind_int(
+                        stmt, 1,
+                        cJSON_GetObjectItemCaseSensitive(
+                            user, "id")->valueint));
+        CHECK_SQL(sqlite3_bind_text(
+                        stmt, 2,
+                        cJSON_GetObjectItemCaseSensitive(
+                            user, "email")->valuestring,
+                        -1, SQLITE_TRANSIENT));
+        CHECK_SQL(sqlite3_bind_text(
+                        stmt, 3,
+                        cJSON_GetObjectItemCaseSensitive(
+                            user, "first_name")->valuestring,
+                        -1, SQLITE_TRANSIENT));
+        CHECK_SQL(sqlite3_bind_text(
+                        stmt, 4,
+                        cJSON_GetObjectItemCaseSensitive(
+                            user, "last_name")->valuestring,
+                        -1, SQLITE_TRANSIENT));
+        CHECK_SQL(sqlite3_bind_text(
+                        stmt, 5,
+                        cJSON_GetObjectItemCaseSensitive(
+                            user, "gender")->valuestring,
+                        -1, SQLITE_TRANSIENT));
+        CHECK_SQL(sqlite3_bind_int(
+                        stmt, 6,
+                        cJSON_GetObjectItemCaseSensitive(
+                            user, "birth_date")->valueint));
+
+        CHECK_SQL(sqlite3_step(stmt));
+        CHECK_SQL(sqlite3_reset(stmt));
+    }
+
+cleanup:
+    return rc;
+}
+
+static const char* INSERT_VISIT = R"(
+INSERT INTO visits (id, location, user, visited_at, mark)
+VALUES (?, ?, ?, ?, ?);
+)";
+
+int insert_visits(cJSON* visits, sqlite3_stmt* stmt)
+{
+    int rc = 0;
+    for(cJSON* visit = visits->child; visit; visit = visit->next)
+    {
+        CHECK_SQL(sqlite3_bind_int(
+                      stmt, 1,
+                      cJSON_GetObjectItemCaseSensitive(
+                          visit, "id")->valueint));
+        CHECK_SQL(sqlite3_bind_int(
+                      stmt, 2,
+                      cJSON_GetObjectItemCaseSensitive(
+                          visit, "location")->valueint));
+        CHECK_SQL(sqlite3_bind_int(
+                      stmt, 3,
+                      cJSON_GetObjectItemCaseSensitive(
+                          visit, "user")->valueint));
+        CHECK_SQL(sqlite3_bind_int(
+                      stmt, 4,
+                      cJSON_GetObjectItemCaseSensitive(
+                          visit, "visited_at")->valueint));
+        CHECK_SQL(sqlite3_bind_int(
+                      stmt, 5,
+                      cJSON_GetObjectItemCaseSensitive(
+                          visit, "mark")->valueint));
+
+        CHECK_SQL(sqlite3_step(stmt));
+        CHECK_SQL(sqlite3_reset(stmt));
+    }
+
+cleanup:
+    return rc;
+}
+
+static const char* INSERT_LOCATION = R"(
+INSERT INTO locations (id, place, country, city, distance)
+VALUES (?, ?, ?, ?, ?);
+)";
+
+int insert_locations(cJSON* locations, sqlite3_stmt* stmt)
+{
+    int rc = 0;
+    for(cJSON* location = locations->child; location; location = location->next)
+    {
+        CHECK_SQL(sqlite3_bind_int(
+                      stmt, 1,
+                      cJSON_GetObjectItemCaseSensitive(
+                          location, "id")->valueint));
+        CHECK_SQL(sqlite3_bind_text(
+                      stmt, 2,
+                      cJSON_GetObjectItemCaseSensitive(
+                          location, "place")->valuestring,
+                      -1, SQLITE_TRANSIENT));
+        CHECK_SQL(sqlite3_bind_text(
+                      stmt, 3,
+                      cJSON_GetObjectItemCaseSensitive(
+                          location, "country")->valuestring,
+                      -1, SQLITE_TRANSIENT));
+        CHECK_SQL(sqlite3_bind_text(
+                      stmt, 4,
+                      cJSON_GetObjectItemCaseSensitive(
+                          location, "city")->valuestring,
+                      -1, SQLITE_TRANSIENT));
+        CHECK_SQL(sqlite3_bind_int(
+                      stmt, 5,
+                      cJSON_GetObjectItemCaseSensitive(
+                          location, "distance")->valueint));
+
+        CHECK_SQL(sqlite3_step(stmt));
+        CHECK_SQL(sqlite3_reset(stmt));
+    }
+
+cleanup:
+    return rc;
+}
+
+
 int bootstrap(sqlite3* db)
 {
     int rc = 0;
@@ -52,14 +176,28 @@ int bootstrap(sqlite3* db)
     CHECK_SQL(sqlite3_exec(db, DDL, NULL, NULL, NULL));
     CHECK_SQL(sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL));
 
-    sqlite3_stmt* insert_user;
+    sqlite3_stmt *insert_user_stmt, *insert_visit_stmt, *insert_location_stmt;
     CHECK_SQL(sqlite3_prepare_v3(
-                    db,
-                    INSERT_USER,
-                    strlen(INSERT_USER),
-                    SQLITE_PREPARE_PERSISTENT,
-                    &insert_user,
-                    NULL));
+                  db,
+                  INSERT_USER,
+                  strlen(INSERT_USER),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &insert_user_stmt,
+                  NULL));
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  INSERT_VISIT,
+                  strlen(INSERT_VISIT),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &insert_visit_stmt,
+                  NULL));
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  INSERT_LOCATION,
+                  strlen(INSERT_LOCATION),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &insert_location_stmt,
+                  NULL));
 
     if(!mz_zip_reader_init_file(&archive, "/tmp/data/data.zip", 0))
     {
@@ -80,7 +218,7 @@ int bootstrap(sqlite3* db)
         char* data = mz_zip_reader_extract_to_heap(&archive, i, NULL, 0);
         if (!data)
         {
-            // limp on
+            // хромаем дальше
             fprintf(stderr, "Processing file '%s' in zip archive FAILED!\n",
                     stat.m_filename);
             continue;
@@ -89,49 +227,26 @@ int bootstrap(sqlite3* db)
         cJSON* root = cJSON_Parse(data);
         if(root)
         {
-            cJSON* users = cJSON_GetObjectItemCaseSensitive(root, "users");
-            if(users)
+            // XXX omitting checks, assuming inputs are correct
+            cJSON *users, *visits, *locations;
+            if((users = cJSON_GetObjectItemCaseSensitive(root, "users")))
             {
-                // XXX omitting checks, assuming inputs are correct
-                for(cJSON* user = users->child; user; user = user->next)
-                {
-                    CHECK_SQL(sqlite3_bind_int(
-                                  insert_user, 1,
-                                  cJSON_GetObjectItemCaseSensitive(
-                                      user, "id")->valueint));
-                    CHECK_SQL(sqlite3_bind_text(
-                                  insert_user, 2,
-                                  cJSON_GetObjectItemCaseSensitive(
-                                      user, "email")->valuestring,
-                                  -1, SQLITE_TRANSIENT));
-                    CHECK_SQL(sqlite3_bind_text(
-                                  insert_user, 3,
-                                  cJSON_GetObjectItemCaseSensitive(
-                                      user, "first_name")->valuestring,
-                                  -1, SQLITE_TRANSIENT));
-                    CHECK_SQL(sqlite3_bind_text(
-                                  insert_user, 4,
-                                  cJSON_GetObjectItemCaseSensitive(
-                                      user, "last_name")->valuestring,
-                                  -1, SQLITE_TRANSIENT));
-                    CHECK_SQL(sqlite3_bind_text(
-                                  insert_user, 5,
-                                  cJSON_GetObjectItemCaseSensitive(
-                                      user, "gender")->valuestring,
-                                  -1, SQLITE_TRANSIENT));
-                    CHECK_SQL(sqlite3_bind_int(
-                                  insert_user, 6,
-                                  cJSON_GetObjectItemCaseSensitive(
-                                      user, "birth_date")->valueint));
-
-                    CHECK_SQL(sqlite3_step(insert_user));
-                    CHECK_SQL(sqlite3_reset(insert_user));
-                }
+                CHECK_SQL(insert_users(users, insert_user_stmt));
+            }
+            /* NOTE default SQLite's PRAGMA foreign_keys is OFF, so
+               we can safely insert visits without any particular order */
+            if((visits = cJSON_GetObjectItemCaseSensitive(root, "visits")))
+            {
+                CHECK_SQL(insert_visits(visits, insert_visit_stmt));
+            }
+            if((locations = cJSON_GetObjectItemCaseSensitive(root, "locations")))
+            {
+                CHECK_SQL(insert_locations(locations, insert_location_stmt));
             }
         }
         else
         {
-            // limp on
+            // хромаем дальше
             fprintf(stderr, "Parsing file '%s' in zip archive FAILED!\n",
                     stat.m_filename);
         }
@@ -144,8 +259,18 @@ cleanup:
     mz_zip_reader_end(&archive);
     if(rc == 0)
     {
-        CHECK_SQL(sqlite3_finalize(insert_user));
-        CHECK_SQL(sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL));
+        CHECK_SQL(sqlite3_exec(db, "COMMIT;",
+                               NULL, NULL, NULL));
+
+        CHECK_SQL(sqlite3_finalize(insert_location_stmt));
+        CHECK_SQL(sqlite3_finalize(insert_visit_stmt));
+        CHECK_SQL(sqlite3_finalize(insert_user_stmt));
+
+        CHECK_SQL(sqlite3_exec(db, "PRAGMA foreign_keys = ON;",
+                               NULL, NULL, NULL));
+        CHECK_SQL(sqlite3_exec(db, "ANALYZE;",
+                               NULL, NULL, NULL));
+
     }
     return rc;
 }

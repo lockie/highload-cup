@@ -2,6 +2,7 @@
 #define _UTILS_H_
 
 #include <stdio.h>
+#include <time.h>
 
 
 /* I have no idea what I'm doing.png */
@@ -25,5 +26,11 @@
             if(!(IS_SET(NDEBUG)))                       \
                 fprintf(stderr, "%s failed.\n", #x);    \
             goto cleanup;}}
+
+#define MEASURE_DURATION(x, s) {struct timespec start, end;              \
+    clock_gettime(CLOCK_MONOTONIC_RAW, &start); {x;}                     \
+    clock_gettime(CLOCK_MONOTONIC_RAW, &end); double ms =                \
+        (end.tv_sec-start.tv_sec)*1000.+(end.tv_nsec-start.tv_nsec)/1e6; \
+    printf("%s took %.2fms\n", s, ms); }
 
 #endif  // _UTILS_H_
