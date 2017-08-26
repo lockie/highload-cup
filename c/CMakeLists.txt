@@ -17,11 +17,11 @@ set(CMAKE_DEBUG_POSTFIX "_d")
 add_compile_options(-march=sandybridge -pipe)
 
 set(CMAKE_C_FLAGS_RELEASE
-  "${CMAKE_C_FLAGS_RELEASE} -fomit-frame-pointer -ffunction-sections")
+  "${CMAKE_C_FLAGS_RELEASE} -fomit-frame-pointer -ffunction-sections -fdata-sections")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO
-  "${CMAKE_C_FLAGS_RELWITHDEBINFO} -fomit-frame-pointer -ffunction-sections")
+  "${CMAKE_C_FLAGS_RELWITHDEBINFO} -fomit-frame-pointer -ffunction-sections -fdata-sections")
 set(CMAKE_C_FLAGS_MINSIZEREL
-  "${CMAKE_C_FLAGS_MINSIZEREL} -fomit-frame-pointer -ffunction-sections")
+  "${CMAKE_C_FLAGS_MINSIZEREL} -fomit-frame-pointer -ffunction-sections -fdata-sections")
 
 
 # Libevent #####################################################################
@@ -62,6 +62,7 @@ add_subdirectory("vendor/miniz")
 set_target_properties(example1 example2 example3 example4 example5 example6
   PROPERTIES EXCLUDE_FROM_ALL ON EXCLUDE_FROM_DEFAULT_BUILD ON)
 target_compile_definitions(miniz PRIVATE
+  _LARGEFILE64_SOURCE
   MINIZ_DISABLE_ZIP_READER_CRC32_CHECKS=1
   MINIZ_NO_ARCHIVE_WRITING_APIS=1
   MINIZ_NO_ZLIB_APIS=1)

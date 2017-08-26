@@ -2,7 +2,7 @@
 -Ivendor/libevent/include
 -Ivendor/cJSON
 -Ibuild/vendor/libevent/include
--Ibuild/sqlite
+-Ibuild/vendor/sqlite
 -Ivendor/miniz
 -DNDEBUG
 -Wall

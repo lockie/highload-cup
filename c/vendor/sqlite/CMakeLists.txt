@@ -19,6 +19,7 @@ ExternalProject_Add(sqlite3c
   CONFIGURE_COMMAND ${CMAKE_CURRENT_BINARY_DIR}/src/sqlite3c/configure -q --disable-tcl --disable-shared --disable-threadsafe --enable-memsys5
   STEP_TARGETS configure amalgamation
   EXCLUDE_FROM_ALL TRUE
+  DOWNLOAD_NO_PROGRESS ON
 )
 
 ExternalProject_Add_Step(sqlite3c amalgamation
