@@ -1,6 +1,6 @@
 project(server LANGUAGES C)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall -Wextra -pedantic -ffunction-sections")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall -Wextra -pedantic")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
 set(SRCS
@@ -19,9 +19,10 @@ include_directories(
   ${LIBEVENT_INCLUDE_DIRS}
   "${CMAKE_SOURCE_DIR}/vendor/cJSON"
   "${CMAKE_BINARY_DIR}/vendor/sqlite"
+  "${CMAKE_SOURCE_DIR}/vendor/miniz"
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 add_executable(server ${SRCS})
-target_link_libraries(server event_static cjson SQLite dl)
+target_link_libraries(server event_static cjson SQLite miniz dl)

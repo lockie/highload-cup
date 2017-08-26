@@ -17,6 +17,8 @@
 
 #include <sqlite3.h>
 
+#include <miniz_zip.h>
+
 
 /* I have no idea what I'm doing.png */
 /* https://stackoverflow.com/a/10119699/1336774 */
@@ -27,7 +29,8 @@
 #define IS_SET___(_, v, ...) v
 
 #define VERIFY_NOT(x, err) if(x == err){perror(#x); exit(EXIT_FAILURE);}
-#define VERIFY_ZERO(x) {int rc = x; if(rc!=0){perror(#x); exit(rc);}}
+#define VERIFY_ZERO(x) {int rc = (x); if(rc!=0){perror(#x); exit(rc);}}
+#define VERIFY_NONZERO(x) {if(!(x)){perror(#x); exit(EXIT_FAILURE);}}
 #define CHECK_POSITIVE(x) {int rc = (x); if(rc<0) {           \
             if(!(IS_SET(NDEBUG)))                             \
                 fprintf(stderr, "%s failed (%d).\n", #x, rc);    \
@@ -35,6 +38,11 @@
 #define CHECK_NONZERO(x) {if(!(x)) {                 \
             if(!(IS_SET(NDEBUG)))                    \
                 fprintf(stderr, "%s failed.\n", #x); \
+            goto cleanup;}}
+#define CHECK_SQL(x) {rc=(x); if(rc!=0&&rc!=SQLITE_DONE){ \
+            if(!(IS_SET(NDEBUG)))                         \
+                fprintf(stderr, "%s: SQL error %d: %s\n", \
+                        #x, rc, sqlite3_errstr(rc));      \
             goto cleanup;}}
 
 
@@ -172,6 +180,17 @@ static const char* ENTITIES[3] = {"users", "visits", "locations"};
 
 static const char* METHODS[2] = {"avg", "visits"};
 
+static int SQL_callback(void *data, int argc, char **argv, char **azColName)
+{
+    struct evbuffer* out_buf = (struct evbuffer*)data;
+    for(int i = 0; i<argc; i++)
+    {
+        evbuffer_add_printf(out_buf, "%s = %s\n",
+                            azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    return 0;
+}
+
 static void request_handler(struct evhttp_request* req, void* arg)
 {
     struct evbuffer* in_buf, *out_buf;
@@ -185,6 +204,27 @@ static void request_handler(struct evhttp_request* req, void* arg)
     char* response;
     int write = 0, res, id, method = METHOD_DEFAULT;
     size_t i, n;
+
+#ifndef NDEBUG
+    /* XXX debug URL to peep into database */
+    if(strncmp(URI, "/SQL", 4) == 0)
+    {
+        int rc;
+
+        in_buf = evhttp_request_get_input_buffer(req);
+        size_t length = evbuffer_get_length(in_buf);
+        body = alloca(length);
+        CHECK_POSITIVE(evbuffer_remove(in_buf, body, length));
+
+        out_buf = evbuffer_new();
+        sqlite3* db = (sqlite3*)arg;
+        CHECK_SQL(sqlite3_exec(db, body, SQL_callback, out_buf, NULL));
+        evhttp_send_reply(req, HTTP_OK, "OK", out_buf);
+        evbuffer_free(out_buf);
+        return;
+    }
+
+#endif // ifndef NDEBUG
 
     /* figure entity from URL */
     for(i = 0; i < sizeof(ENTITIES) / sizeof(ENTITIES[0]); i++)
@@ -377,6 +417,145 @@ cleanup:
     evhttp_connection_free(req->evcon);
 }
 
+static const char* DDL = R"(
+CREATE TABLE users (
+    id INTEGER NOT NULL,
+    email VARCHAR(100),
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    gender CHAR(1),
+    birth_date INTEGER,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE locations (
+    id INTEGER NOT NULL,
+    place VARCHAR,
+    country VARCHAR(50),
+    city VARCHAR(50),
+    distance INTEGER,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE visits (
+    id INTEGER NOT NULL,
+    location INTEGER,
+    user INTEGER,
+    visited_at INTEGER,
+    mark SMALLINT,
+    PRIMARY KEY (id),
+    FOREIGN KEY(location) REFERENCES locations (id),
+    FOREIGN KEY(user) REFERENCES users (id)
+);
+)";
+
+static const char* INSERT_USER = R"(
+INSERT INTO users (id, email, first_name, last_name, gender, birth_date)
+VALUES (?, ?, ?, ?, ?, ?);
+)";
+
+int bootstrap(sqlite3* db)
+{
+    int rc = 0;
+
+    mz_zip_archive archive;
+    memset(&archive, 0, sizeof(archive));
+
+    CHECK_SQL(sqlite3_exec(db, DDL, NULL, NULL, NULL));
+    CHECK_SQL(sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL));
+
+    sqlite3_stmt* insert_user;
+    CHECK_SQL(sqlite3_prepare_v3(
+                    db,
+                    INSERT_USER,
+                    strlen(INSERT_USER),
+                    SQLITE_PREPARE_PERSISTENT,
+                    &insert_user,
+                    NULL));
+
+    if(!mz_zip_reader_init_file(&archive, "/tmp/data/data.zip", 0))
+    {
+        return mz_zip_get_last_error(&archive);
+    }
+    for(unsigned i = 0; i < mz_zip_reader_get_num_files(&archive); i++)
+    {
+        mz_zip_archive_file_stat stat;
+        if(!mz_zip_reader_file_stat(&archive, i, &stat))
+        {
+            mz_zip_reader_end(&archive);
+            return mz_zip_get_last_error(&archive);
+        }
+#ifndef NDEBUG
+        printf("Processing %s...\n", stat.m_filename);
+#endif  // !NDEBUG
+
+        char* data = mz_zip_reader_extract_to_heap(&archive, i, NULL, 0);
+        if (!data)
+        {
+            // limp on
+            fprintf(stderr, "Processing file '%s' in zip archive FAILED!\n",
+                    stat.m_filename);
+            continue;
+        }
+
+        cJSON* root = cJSON_Parse(data);
+        if(root)
+        {
+            cJSON* users = cJSON_GetObjectItemCaseSensitive(root, "users");
+            if(users)
+            {
+                // XXX omitting checks, assuming inputs are correct
+                for(cJSON* user = users->child; user; user = user->next)
+                {
+                    CHECK_SQL(sqlite3_bind_int(
+                                  insert_user, 1,
+                                  cJSON_GetObjectItemCaseSensitive(user, "id")->valueint));
+                    CHECK_SQL(sqlite3_bind_text(
+                                  insert_user, 2,
+                                  cJSON_GetObjectItemCaseSensitive(user, "email")->valuestring,
+                                  -1, SQLITE_TRANSIENT));
+                    CHECK_SQL(sqlite3_bind_text(
+                                  insert_user, 3,
+                                  cJSON_GetObjectItemCaseSensitive(user, "first_name")->valuestring,
+                                  -1, SQLITE_TRANSIENT));
+                    CHECK_SQL(sqlite3_bind_text(
+                                  insert_user, 4,
+                                  cJSON_GetObjectItemCaseSensitive(user, "last_name")->valuestring,
+                                  -1, SQLITE_TRANSIENT));
+                    CHECK_SQL(sqlite3_bind_text(
+                                  insert_user, 5,
+                                  cJSON_GetObjectItemCaseSensitive(user, "gender")->valuestring,
+                                  -1, SQLITE_TRANSIENT));
+                    CHECK_SQL(sqlite3_bind_int(
+                                  insert_user, 6,
+                                  cJSON_GetObjectItemCaseSensitive(user, "birth_date")->valueint));
+
+                    CHECK_SQL(sqlite3_step(insert_user));
+                    CHECK_SQL(sqlite3_reset(insert_user));
+                }
+            }
+        }
+        else
+        {
+            // limp on
+            fprintf(stderr, "Parsing file '%s' in zip archive FAILED!\n",
+                    stat.m_filename);
+        }
+
+        cJSON_Delete(root);
+        mz_free(data);
+    }
+
+cleanup:
+    mz_zip_reader_end(&archive);
+    if(rc == 0)
+    {
+        CHECK_SQL(sqlite3_finalize(insert_user));
+        CHECK_SQL(sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL));
+    }
+    return rc;
+}
+
 int main(int argc, char** argv)
 {
     struct event_base* base;
@@ -391,30 +570,27 @@ int main(int argc, char** argv)
 
     cJSON_InitHooks(NULL);
 
-    struct sqlite3* db;
+    sqlite3* db;
     VERIFY_ZERO(sqlite3_open(":memory:", &db));
+
+    VERIFY_ZERO(bootstrap(db));
+
 
 #ifndef NDEBUG
     event_enable_debug_mode();
     event_enable_debug_logging(EVENT_DBG_ALL);
 #endif  /* NDEBUG */
 
-    base = event_base_new();
-    if(!base)
-        return EXIT_FAILURE;
+    VERIFY_NONZERO(base = event_base_new());
 
-    http = evhttp_new(base);
-    if(!http)
-        return EXIT_FAILURE;
+    VERIFY_NONZERO(http = evhttp_new(base));
 
     evhttp_set_default_content_type(http, "application/json; charset=utf-8");
     evhttp_set_allowed_methods(http, EVHTTP_REQ_GET | EVHTTP_REQ_POST);
 
-    evhttp_set_gencb(http, request_handler, NULL);
+    evhttp_set_gencb(http, request_handler, db);
 
-    handle = evhttp_bind_socket_with_handle(http, "0.0.0.0", port);
-    if (!handle)
-        return EXIT_FAILURE;
+    VERIFY_NONZERO(handle = evhttp_bind_socket_with_handle(http, "0.0.0.0", port));
 
     printf("Listening on port %d\n", port);
 

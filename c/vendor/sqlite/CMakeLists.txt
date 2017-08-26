@@ -7,8 +7,6 @@ set(SQLITE3_SHA1 "808448837323b4ef9c0771af89d06dca5f0832dd")
 # NO CHANGE BELOW THIS LINE
 ###############################################################################
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffunction-sections")
-
 set(SQLITE_WORK_DIR "${CMAKE_BINARY_DIR}/sqlite/src/sqlite3c")
 
 include(ExternalProject)

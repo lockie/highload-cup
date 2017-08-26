@@ -4,3 +4,6 @@
 [submodule "c/vendor/cJSON"]
 	path = c/vendor/cJSON
 	url = https://github.com/DaveGamble/cJSON
+[submodule "c/vendor/miniz"]
+	path = c/vendor/miniz
+	url = https://github.com/lockie/miniz

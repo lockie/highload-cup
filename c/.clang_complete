@@ -2,6 +2,7 @@
 -Ivendor/cJSON
 -Ibuild/vendor/libevent/include
 -Ibuild/sqlite
+-Ivendor/miniz
 -DNDEBUG
 -Wall
 -Wextra
