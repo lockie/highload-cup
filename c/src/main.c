@@ -35,9 +35,8 @@ int main(int argc, char** argv)
 
     cJSON_InitHooks(NULL);
 
-    sqlite3* db;
-    VERIFY_ZERO(sqlite3_open(":memory:", &db));
-    MEASURE_DURATION(VERIFY_ZERO(bootstrap(db)), "Bootstrapping");
+    database_t database;
+    MEASURE_DURATION(VERIFY_ZERO(bootstrap(&database)), "Bootstrapping");
 
 #ifndef NDEBUG
     event_enable_debug_mode();
@@ -50,7 +49,7 @@ int main(int argc, char** argv)
     VERIFY_NONZERO(http = evhttp_new(base));
     evhttp_set_default_content_type(http, "application/json; charset=utf-8");
     evhttp_set_allowed_methods(http, EVHTTP_REQ_GET | EVHTTP_REQ_POST);
-    evhttp_set_gencb(http, request_handler, db);
+    evhttp_set_gencb(http, request_handler, &database);
     VERIFY_NONZERO(evhttp_bind_socket_with_handle(
                        http, "0.0.0.0", port));
     printf("Listening on port %d\n", port);

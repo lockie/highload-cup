@@ -9,13 +9,22 @@
 #include "utils.h"
 
 
-#define CHECK_SQL(x) {rc=(x); if(rc!=0&&rc!=SQLITE_DONE){   \
-            if(!(IS_SET(NDEBUG)))                           \
-                fprintf(stderr, "%s: SQL error %d: %s\n",   \
-                        #x, rc, sqlite3_errstr(rc));        \
+#define CHECK_SQL(x) {rc=(x); if(rc!=0&&rc!=SQLITE_DONE&&rc!=SQLITE_ROW){ \
+            if(!(IS_SET(NDEBUG)))                                         \
+                fprintf(stderr, "%s: SQL error %d: %s\n",                 \
+                        #x, rc, sqlite3_errstr(rc));                      \
             goto cleanup;}}
 
-int bootstrap(sqlite3* db);
+typedef struct
+{
+    sqlite3* db;
+
+    /* NOTE : order of statements is the same as in ENTITIES array */
+    sqlite3_stmt* read_stmts[3];
+    sqlite3_stmt* write_stmts[3];
+} database_t;
+
+int bootstrap(database_t*);
 int process_SQL(struct evhttp_request* req, void* arg);  // XXX debug
 
 

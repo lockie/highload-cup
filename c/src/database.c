@@ -39,10 +39,10 @@ CREATE TABLE visits (
 
 static const char* INSERT_USER = R"(
 INSERT INTO users (id, email, first_name, last_name, gender, birth_date)
-VALUES (?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?)
 )";
 
-int insert_users(cJSON* users, sqlite3_stmt* stmt)
+static int insert_users(cJSON* users, sqlite3_stmt* stmt)
 {
     int rc = 0;
     for(cJSON* user = users->child; user; user = user->next)
@@ -86,10 +86,10 @@ cleanup:
 
 static const char* INSERT_VISIT = R"(
 INSERT INTO visits (id, location, user, visited_at, mark)
-VALUES (?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?)
 )";
 
-int insert_visits(cJSON* visits, sqlite3_stmt* stmt)
+static int insert_visits(cJSON* visits, sqlite3_stmt* stmt)
 {
     int rc = 0;
     for(cJSON* visit = visits->child; visit; visit = visit->next)
@@ -125,10 +125,10 @@ cleanup:
 
 static const char* INSERT_LOCATION = R"(
 INSERT INTO locations (id, place, country, city, distance)
-VALUES (?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?)
 )";
 
-int insert_locations(cJSON* locations, sqlite3_stmt* stmt)
+static int insert_locations(cJSON* locations, sqlite3_stmt* stmt)
 {
     int rc = 0;
     for(cJSON* location = locations->child; location; location = location->next)
@@ -165,16 +165,103 @@ cleanup:
     return rc;
 }
 
+static const char* SELECT_USER = R"(
+SELECT id, email, first_name, last_name, gender, birth_date
+FROM users WHERE id = ?
+)";
 
-int bootstrap(sqlite3* db)
+static const char* SELECT_VISIT = R"(
+SELECT id, location, user, visited_at, mark
+FROM visits WHERE id = ?
+)";
+
+static const char* SELECT_LOCATION = R"(
+SELECT id, place, country, city, distance
+FROM locations WHERE id = ?
+)";
+
+static const char* UPDATE_USER = R"(
+UPDATE users SET email=?2, first_name=?3, last_name=?4, gender=?5, birth_date=?6
+WHERE id = ?1
+)";
+
+static const char* UPDATE_VISIT = R"(
+UPDATE visits SET location=?2, user=?3, visited_at=?4, mark=?5
+WHERE id = ?1
+)";
+
+static const char* UPDATE_LOCATION = R"(
+UPDATE locations SET place=?2, country=?3, city=?4, distance=?5
+WHERE id = ?1
+)";
+
+static int setup_statements(database_t* database)
 {
     int rc = 0;
+    sqlite3* db = database->db;
+
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  SELECT_USER,
+                  strlen(SELECT_USER),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->read_stmts[0],
+                  NULL));
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  SELECT_VISIT,
+                  strlen(SELECT_VISIT),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->read_stmts[1],
+                  NULL));
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  SELECT_LOCATION,
+                  strlen(SELECT_LOCATION),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->read_stmts[2],
+                  NULL));
+
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  UPDATE_USER,
+                  strlen(UPDATE_USER),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->write_stmts[0],
+                  NULL));
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  UPDATE_VISIT,
+                  strlen(UPDATE_VISIT),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->write_stmts[1],
+                  NULL));
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  UPDATE_LOCATION,
+                  strlen(UPDATE_LOCATION),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->write_stmts[2],
+                  NULL));
+
+cleanup:
+    return rc;
+}
+
+
+int bootstrap(database_t* database)
+{
+    int rc = 0;
+
+    sqlite3* db;
+    VERIFY_ZERO(sqlite3_open(":memory:", &db));
+    database->db = db;
 
     mz_zip_archive archive;
     memset(&archive, 0, sizeof(archive));
 
     CHECK_SQL(sqlite3_exec(db, DDL, NULL, NULL, NULL));
-    CHECK_SQL(sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL));
+    CHECK_SQL(sqlite3_exec(db, "BEGIN", NULL, NULL, NULL));
 
     sqlite3_stmt *insert_user_stmt, *insert_visit_stmt, *insert_location_stmt;
     CHECK_SQL(sqlite3_prepare_v3(
@@ -259,18 +346,18 @@ cleanup:
     mz_zip_reader_end(&archive);
     if(rc == 0)
     {
-        CHECK_SQL(sqlite3_exec(db, "COMMIT;",
+        CHECK_SQL(sqlite3_exec(db, "COMMIT",
                                NULL, NULL, NULL));
 
         CHECK_SQL(sqlite3_finalize(insert_location_stmt));
         CHECK_SQL(sqlite3_finalize(insert_visit_stmt));
         CHECK_SQL(sqlite3_finalize(insert_user_stmt));
 
-        CHECK_SQL(sqlite3_exec(db, "PRAGMA foreign_keys = ON;",
+        CHECK_SQL(sqlite3_exec(db, "PRAGMA foreign_keys = ON",
                                NULL, NULL, NULL));
-        CHECK_SQL(sqlite3_exec(db, "ANALYZE;",
+        CHECK_SQL(sqlite3_exec(db, "ANALYZE",
                                NULL, NULL, NULL));
-
+        CHECK_SQL(setup_statements(database));
     }
     return rc;
 }
@@ -296,8 +383,8 @@ int process_SQL(struct evhttp_request* req, void* arg)
     CHECK_POSITIVE(evbuffer_remove(in_buf, body, length));
 
     CHECK_NONZERO(out_buf = evbuffer_new());
-    sqlite3* db = (sqlite3*)arg;
-    CHECK_SQL(sqlite3_exec(db, body, SQL_callback, out_buf, NULL));
+    database_t* database = (database_t*)arg;
+    CHECK_SQL(sqlite3_exec(database->db, body, SQL_callback, out_buf, NULL));
     evhttp_send_reply(req, HTTP_OK, "OK", out_buf);
     rc = 0;
 

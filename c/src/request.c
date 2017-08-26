@@ -11,6 +11,7 @@
 #include "database.h"
 #include "entity.h"
 #include "utils.h"
+#include "request.h"
 
 
 static const char* ERR_FORMAT = "{\"error\": \"%s\"}";
@@ -68,8 +69,6 @@ static int convert_int(const char* value, int* error)
     return atoi(value);
 }
 
-static const char* ENTITIES[3] = {"users", "visits", "locations"};
-
 static const char* METHODS[2] = {"avg", "visits"};
 
 void request_handler(struct evhttp_request* req, void* arg)
@@ -77,7 +76,7 @@ void request_handler(struct evhttp_request* req, void* arg)
     struct evbuffer* in_buf, *out_buf;
     const char* URI = evhttp_request_get_uri(req);
     struct evkeyvalq query;
-    const char* entity = NULL;
+    int entity = -1;
     const char* method_str;
     parameters_t params;
     char* identifier;
@@ -102,15 +101,15 @@ void request_handler(struct evhttp_request* req, void* arg)
     /* figure entity from URL */
     for(i = 0; i < sizeof(ENTITIES) / sizeof(ENTITIES[0]); i++)
     {
-        if(strncmp(&URI[1], ENTITIES[i], strlen(ENTITIES[i])) == 0)
+        if(strncmp(&URI[1], ENTITIES[i].name, strlen(ENTITIES[i].name)) == 0)
         {
-            entity = ENTITIES[i];
-            if(URI[strlen(entity)+1] != 47) /* / */
-                entity = NULL;
+            entity = i;
+            if(URI[strlen(ENTITIES[i].name)+1] != 47) /* / */
+                entity = -1;
             break;
         }
     }
-    if(!entity)
+    if(entity == -1)
     {
         handle_bad_request(req, "invalid entity");
         return;
@@ -131,7 +130,7 @@ void request_handler(struct evhttp_request* req, void* arg)
     }
 
     /* figure id */
-    n = strlen(entity) + 2;
+    n = strlen(ENTITIES[i].name) + 2;
     identifier = alloca(strlen(URI) - n + 1);
     strncpy(identifier, &URI[n], strlen(URI) - n + 1);
     if(write && strncmp(identifier, "new", 3) == 0)
@@ -165,29 +164,21 @@ void request_handler(struct evhttp_request* req, void* arg)
     }
 
     /* figure out remainder */
-    if(URI[n])
+    if(URI[n] == '/')
     {
-        if(write)
+        method_str = &URI[++n];
+        for(i = 0; i < sizeof(METHODS) / sizeof(METHODS[0]); i++)
         {
-            handle_bad_request(req, "invalid query string for POST");
-            return;
-        }
-        if(URI[n] == '/')
-        {
-            method_str = &URI[++n];
-            for(i = 0; i < sizeof(METHODS) / sizeof(METHODS[0]); i++)
+            if(strncmp(method_str, METHODS[i], strlen(METHODS[i])) == 0)
             {
-                if(strncmp(method_str, METHODS[i], strlen(METHODS[i])) == 0)
+                method = i;
+                n += strlen(METHODS[i]);
+                if(URI[n] && URI[n] != '?')
                 {
-                    method = i;
-                    n += strlen(METHODS[i]);
-                    if(URI[n] && URI[n] != '?')
-                    {
-                        handle_bad_request(req, "invalid query string");
-                        return;
-                    }
-                    break;
+                    handle_bad_request(req, "invalid query string");
+                    return;
                 }
+                break;
             }
         }
     }
@@ -195,9 +186,10 @@ void request_handler(struct evhttp_request* req, void* arg)
     /* figure query parameters */
     if(URI[n] == '?')
     {
-        CHECK_POSITIVE(evhttp_parse_query_str(&URI[n+1], &query));
         if(method != METHOD_DEFAULT)
         {
+            CHECK_POSITIVE(evhttp_parse_query_str(&URI[n+1], &query));
+
             const char* gender = evhttp_find_header(&query, "toAge");
             if(gender && strlen(gender) != 2)
             {
@@ -260,7 +252,8 @@ error:
     }
 
     /* do processing */
-    res = process_entity(entity, id, method, write, &params, body, &response);
+    res = process_entity(arg, entity, id, method, write, &params, body,
+                         &response);
     switch(res)
     {
     case PROCESS_RESULT_OK:
