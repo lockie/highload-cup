@@ -4,6 +4,7 @@
 -Ibuild/vendor/libevent/include
 -Ibuild/vendor/sqlite
 -Ivendor/miniz
+-Ibuild/src
 -DNDEBUG
 -Wall
 -Wextra

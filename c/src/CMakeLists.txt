@@ -1,5 +1,7 @@
 project(server LANGUAGES C)
 
+include(${CMAKE_SOURCE_DIR}/cmake/Gengetopt.cmake)
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall -Wextra -pedantic")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
@@ -11,6 +13,8 @@ set(SRCS
   entity.c
   methods.c
 )
+
+add_gengetopt_files(SRCS cmdline.ggo)
 
 # add assembler listing
 if(CMAKE_COMPILER_IS_GNUCC)
@@ -27,6 +31,7 @@ include_directories(
   "${CMAKE_SOURCE_DIR}/vendor/cJSON"
   "${CMAKE_BINARY_DIR}/vendor/sqlite"
   "${CMAKE_SOURCE_DIR}/vendor/miniz"
+  "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})

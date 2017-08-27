@@ -26,7 +26,7 @@ typedef struct
     sqlite3_stmt* write_stmts[3];
 } database_t;
 
-int bootstrap(database_t*);
+int bootstrap(database_t*, const char*);
 int process_SQL(struct evhttp_request*, void*);  // XXX debug
 int insert_entity(database_t*, cJSON*, int);
 

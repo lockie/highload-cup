@@ -116,16 +116,18 @@ static inline int bind_val(sqlite3_stmt* stmt, const entity_t* entity,
 
     if(entity->column_types[i] == COLUMN_TYPE_INT)
     {
-#ifdef DEBUG_DUMP
-        printf("%d", value);
-#endif  // DEBUG_DUMP
+#ifndef NDEBUG
+        if(dump)
+            printf("%d", (int)(intptr_t)value);
+#endif  // NDEBUG
         CHECK_SQL(sqlite3_bind_int(stmt, i+2, (intptr_t)value));
     }
     else
     {
-#ifdef DEBUG_DUMP
-        printf("\"%s\"", value);
-#endif  // DEBUG_DUMP
+#ifndef NDEBUG
+        if(dump)
+            printf("\"%s\"", (char*)value);
+#endif  // NDEBUG
         CHECK_SQL(sqlite3_bind_text(stmt, i+2, value, -1, SQLITE_TRANSIENT));
     }
 
@@ -142,21 +144,26 @@ int insert_entity(database_t* database, cJSON* json, int e)
     cJSON* id = cJSON_GetObjectItemCaseSensitive(json, "id");
     if(!id || !cJSON_IsNumber(id))
         return PROCESS_RESULT_BAD_REQUEST;
-#ifdef DEBUG_DUMP
-    printf("INSERT INTO %s VALUES (%d,", entity->name, id->valueint);
-#endif  // DEBUG_DUMP
+#ifndef NDEBUG
+    if(dump)
+        printf("INSERT INTO %s VALUES (%d,", entity->name, id->valueint);
+#endif  // NDEBUG
     CHECK_SQL(sqlite3_bind_int(insert_stmt, 1, id->valueint));
     for(int i = 0; i < 5; i++)
     {
         CHECK_ZERO(bind_val(insert_stmt, entity, json, i));
-#ifdef DEBUG_DUMP
-        if(i != 4 && entity->column_types[i+1] != COLUMN_TYPE_NONE)
-            printf(",");
+#ifndef NDEBUG
+        if(dump)
+        {
+            if(i != 4 && entity->column_types[i+1] != COLUMN_TYPE_NONE)
+                printf(",");
+        }
 #endif  // NDEBUG
     }
-#ifdef DEBUG_DUMP
-    printf(");\n");
-#endif  // DEBUG_DUMP
+#ifndef NDEBUG
+    if(dump)
+        printf(");\n");
+#endif  // NDEBUG
     CHECK_SQL(sqlite3_step(insert_stmt));
     if(rc == SQLITE_DONE)
         rc = 0;
@@ -253,7 +260,7 @@ cleanup:
 }
 
 
-int bootstrap(database_t* database)
+int bootstrap(database_t* database, const char* filename)
 {
     int rc = 0;
 
@@ -268,7 +275,12 @@ int bootstrap(database_t* database)
     CHECK_SQL(setup_statements(database));
     CHECK_SQL(sqlite3_exec(db, "BEGIN", NULL, NULL, NULL));
 
-    if(!mz_zip_reader_init_file(&archive, "/tmp/data/data.zip", 0))
+#ifndef NDEBUG
+    if(dump)
+        printf("%s\nBEGIN;\n", DDL);
+#endif  // NDEBUG
+
+    if(!mz_zip_reader_init_file(&archive, filename, 0))
     {
         return mz_zip_get_last_error(&archive);
     }
@@ -280,7 +292,8 @@ int bootstrap(database_t* database)
             mz_zip_reader_end(&archive);
             return mz_zip_get_last_error(&archive);
         }
-        fprintf(stderr, "Processing %s...\n", stat.m_filename);
+        if(verbose)
+            printf("Processing %s...\n", stat.m_filename);
 
         char* data = mz_zip_reader_extract_to_heap(&archive, i, NULL, 0);
         if (!data)
@@ -323,6 +336,11 @@ cleanup:
     mz_zip_reader_end(&archive);
     if(rc == 0)
     {
+#ifndef NDEBUG
+        if(dump)
+            printf("COMMIT;\nANALYZE;\n");
+#endif  // NDEBUG
+
         CHECK_SQL(sqlite3_exec(db, "COMMIT",
                                NULL, NULL, NULL));
         CHECK_SQL(sqlite3_exec(db, "PRAGMA foreign_keys = ON",

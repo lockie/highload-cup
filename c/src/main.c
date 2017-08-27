@@ -9,7 +9,11 @@
 #include "database.h"
 #include "request.h"
 #include "utils.h"
+#include "cmdline.h"
 
+
+int verbose;
+int dump;
 
 static void terminate_handler(int signum)
 {
@@ -25,21 +29,43 @@ static void setup_signals()
 
 int main(int argc, char** argv)
 {
-    ev_uint16_t port = 8080;
+    // Docker <_<
+    setbuf(stdout, NULL);
+    setbuf(stderr, NULL);
 
-    (void)argc;
-    (void)argv;
+    struct gengetopt_args_info args;
+    if(cmdline_parser(argc, argv, &args) != 0)
+        return EXIT_FAILURE;
+
+    verbose = args.verbose_flag;
+    dump = args.dump_flag;
+    if(dump)
+        verbose = 0;
+#ifdef NDEBUG
+    if(dump)
+    {
+        fprintf(stderr, "This is release build, dump functionality disabled\n");
+        return EXIT_FAILURE;
+    }
+#endif
 
     setup_signals();
 
     cJSON_InitHooks(NULL);
 
     database_t database;
-    MEASURE_DURATION(VERIFY_ZERO(bootstrap(&database)), "Bootstrapping");
+    MEASURE_DURATION(VERIFY_ZERO(bootstrap(&database, args.data_arg)),
+                     "Bootstrapping");
+
+    if(dump)
+        return EXIT_SUCCESS;
 
 #ifndef NDEBUG
-    event_enable_debug_mode();
-    event_enable_debug_logging(EVENT_DBG_ALL);
+    if(verbose)
+    {
+        event_enable_debug_mode();
+        event_enable_debug_logging(EVENT_DBG_ALL);
+    }
 #endif  /* NDEBUG */
 
     struct event_base* base;
@@ -50,8 +76,9 @@ int main(int argc, char** argv)
     evhttp_set_allowed_methods(http, EVHTTP_REQ_GET | EVHTTP_REQ_POST);
     evhttp_set_gencb(http, request_handler, &database);
     VERIFY_NONZERO(evhttp_bind_socket_with_handle(
-                       http, "0.0.0.0", port));
-    printf("Listening on port %d\n", port);
+                       http, "0.0.0.0", args.port_arg));
+    if(verbose)
+        printf("Listening on port %d\n", args.port_arg);
     event_base_dispatch(base);
 
     return EXIT_SUCCESS;

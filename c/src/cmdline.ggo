@@ -1,0 +1,21 @@
+package "server"
+purpose "Highload Cup entry of @awkravchuk"
+version "2.0"
+
+option "port" p
+  "Port to listen on"
+  int default="8080"
+  typestr="PORT"
+  optional
+
+option "verbose" v
+  "Be verbose"
+  flag off
+
+option "dump" -
+  "Dump SQL (only in debug build)"
+  flag off
+
+option "data" d
+  "Location of data.zip file"
+  string default="/tmp/data/data.zip"
