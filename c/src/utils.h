@@ -26,7 +26,7 @@
             if(!(IS_SET(NDEBUG)))                       \
                 fprintf(stderr, "%s failed.\n", #x);    \
             goto cleanup;}}
-#define CHECK_ZERO(x) {if((x)) {                    \
+#define CHECK_ZERO(x) {rc=(x); if(rc) {                 \
             if(!(IS_SET(NDEBUG)))                       \
                 fprintf(stderr, "%s failed.\n", #x);    \
             goto cleanup;}}

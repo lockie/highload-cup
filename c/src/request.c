@@ -19,7 +19,13 @@ static int convert_int(const char* value, int* error)
 {
     if(!value)
         return INT_MAX;
-    for(size_t i = 0; i < strlen(value); i++)
+    size_t len = strlen(value);
+    if(len == 0)
+    {
+        *error = 1;
+        return INT_MAX;
+    }
+    for(size_t i = 0; i < len; i++)
     {
         if(!isdigit(value[i]))
         {
@@ -39,10 +45,9 @@ void request_handler(struct evhttp_request* req, void* arg)
     struct evkeyvalq query;
     int entity = -1;
     const char* method_str;
-    parameters_t params;
     char* identifier;
     char* body = NULL;
-    char* response;
+    char* response = NULL;
     int write = 0, res, id, method = METHOD_DEFAULT;
     size_t i, n;
 
@@ -145,6 +150,7 @@ void request_handler(struct evhttp_request* req, void* arg)
     }
 
     /* figure query parameters */
+    parameters_t params = {INT_MAX, INT_MAX, NULL, INT_MAX, INT_MAX, INT_MAX, 0};
     if(URI[n] == '?')
     {
         if(method != METHOD_DEFAULT)
@@ -170,8 +176,12 @@ void request_handler(struct evhttp_request* req, void* arg)
                     evhttp_find_header(&query, "toDate"), &e);
                 if(e) goto error;
 
-                params.country =
+                const char* country =
                     evhttp_find_header(&query, "country");
+                if(country && country[0] == 0)
+                    goto error;
+                if(country)
+                    params.country = strdup(country);
                 params.toDistance = convert_int(
                     evhttp_find_header(&query, "toDistance"), &e);
                 if(e) goto error;
@@ -189,7 +199,7 @@ void request_handler(struct evhttp_request* req, void* arg)
 
 error:
                 evhttp_clear_headers(&query);
-                handle_bad_request(req, "invalid integer query parameter");
+                handle_bad_request(req, "invalid query parameter");
                 return;
             }
         }
@@ -242,5 +252,6 @@ error:
     return;
 
 cleanup:
+    free(params.country);
     evhttp_connection_free(req->evcon);
 }

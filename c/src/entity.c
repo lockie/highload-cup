@@ -3,6 +3,7 @@
 
 #include <cJSON.h>
 
+#include "utils.h"
 #include "entity.h"
 
 
@@ -175,7 +176,7 @@ static int create_entity(database_t* database, cJSON* json, int e)
     }
     int id = json_id->valueint;
     /* first, check the entity already exists by SELECTing it */
-    /* XXX room for optimization here: its possible to use EXISTS query here */
+    /* XXX room for optimization here: its possible to use EXISTS query*/
     sqlite3_stmt* read_stmt = database->read_stmts[e];
     CHECK_SQL(sqlite3_reset(read_stmt));
     CHECK_SQL(sqlite3_bind_int(read_stmt, 1, id));
@@ -190,8 +191,7 @@ cleanup:
 }
 
 int process_entity(database_t* database,
-                   int entity, int id, int method, int write,
-                   const parameters_t* parameters,
+                   int entity, int id, int write,
                    const char* body, char** response)
 {
     if(write)

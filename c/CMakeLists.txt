@@ -67,12 +67,5 @@ target_compile_definitions(miniz PRIVATE
   MINIZ_NO_ARCHIVE_WRITING_APIS=1
   MINIZ_NO_ZLIB_APIS=1)
 
-if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
-  target_compile_definitions(miniz PRIVATE
-    __TINYC__
-  )
-endif()
-
-
 # Main binary ##################################################################
 add_subdirectory("src")

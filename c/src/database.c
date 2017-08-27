@@ -114,10 +114,16 @@ static inline int bind_val(sqlite3_stmt* stmt, const entity_t* entity,
 
     if(entity->column_types[i] == COLUMN_TYPE_INT)
     {
+#ifdef DEBUG_DUMP
+        printf("%d", value);
+#endif  // DEBUG_DUMP
         CHECK_SQL(sqlite3_bind_int(stmt, i+2, (intptr_t)value));
     }
     else
     {
+#ifdef DEBUG_DUMP
+        printf("\"%s\"", value);
+#endif  // DEBUG_DUMP
         CHECK_SQL(sqlite3_bind_text(stmt, i+2, value, -1, SQLITE_TRANSIENT));
     }
 
@@ -134,11 +140,21 @@ int insert_entity(database_t* database, cJSON* json, int e)
     cJSON* id = cJSON_GetObjectItemCaseSensitive(json, "id");
     if(!id || !cJSON_IsNumber(id))
         return PROCESS_RESULT_BAD_REQUEST;
+#ifdef DEBUG_DUMP
+    printf("INSERT INTO %s VALUES (%d,", entity->name, id->valueint);
+#endif  // DEBUG_DUMP
     CHECK_SQL(sqlite3_bind_int(insert_stmt, 1, id->valueint));
     for(int i = 0; i < 5; i++)
     {
         CHECK_ZERO(bind_val(insert_stmt, entity, json, i));
+#ifdef DEBUG_DUMP
+        if(i != 4 && entity->column_types[i+1] != COLUMN_TYPE_NONE)
+            printf(",");
+#endif  // NDEBUG
     }
+#ifdef DEBUG_DUMP
+    printf(");\n");
+#endif  // DEBUG_DUMP
     CHECK_SQL(sqlite3_step(insert_stmt));
     if(rc == SQLITE_DONE)
         rc = 0;
@@ -262,9 +278,7 @@ int bootstrap(database_t* database)
             mz_zip_reader_end(&archive);
             return mz_zip_get_last_error(&archive);
         }
-#ifndef NDEBUG
-        printf("Processing %s...\n", stat.m_filename);
-#endif  // !NDEBUG
+        fprintf(stderr, "Processing %s...\n", stat.m_filename);
 
         char* data = mz_zip_reader_extract_to_heap(&archive, i, NULL, 0);
         if (!data)
@@ -279,7 +293,6 @@ int bootstrap(database_t* database)
         if(root)
         {
             // XXX omitting some checks, assuming inputs are correct
-            cJSON *users, *visits, *locations;
             for(int i = 0; i < 3; i++)
             {
                 cJSON* entities =
@@ -335,7 +348,8 @@ int process_SQL(struct evhttp_request* req, void* arg)
 
     CHECK_NONZERO(in_buf = evhttp_request_get_input_buffer(req));
     size_t length = evbuffer_get_length(in_buf);
-    char* body = alloca(length);
+    char* body = alloca(length+1);
+    memset(body, 0, length+1);
     CHECK_POSITIVE(evbuffer_remove(in_buf, body, length));
 
     CHECK_NONZERO(out_buf = evbuffer_new());

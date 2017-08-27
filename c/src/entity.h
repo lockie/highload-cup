@@ -39,8 +39,7 @@ typedef struct
 
 /* NOTE entity is index in ENTITIES array */
 int process_entity(database_t* database,
-                   int entity, int id, int method, int write,
-                   const parameters_t* parameters,
+                   int entity, int id, int write,
                    const char* body, char** response);
 
 #endif  // _ENTITY_H_
