@@ -35,6 +35,8 @@ CREATE TABLE visits (
     FOREIGN KEY(location) REFERENCES locations (id),
     FOREIGN KEY(user) REFERENCES users (id)
 );
+CREATE INDEX visits_location ON visits (location);
+CREATE INDEX visits_user ON visits(user);
 )";
 
 static const char* INSERT_USER = R"(
@@ -325,6 +327,11 @@ cleanup:
                                NULL, NULL, NULL));
         CHECK_SQL(sqlite3_exec(db, "PRAGMA foreign_keys = ON",
                                NULL, NULL, NULL));
+        CHECK_SQL(sqlite3_exec(db, "PRAGMA synchronous = OFF",
+                               NULL, NULL, NULL));
+        CHECK_SQL(sqlite3_exec(db, "PRAGMA temp_store = MEMORY",
+                               NULL, NULL, NULL));
+        // TODO : try journal_mode = OFF. it will disable atomic COMMIT/ROLLBACK tho
         CHECK_SQL(sqlite3_exec(db, "ANALYZE",
                                NULL, NULL, NULL));
     }

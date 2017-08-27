@@ -10,6 +10,7 @@
 
 #include "database.h"
 #include "entity.h"
+#include "methods.h"
 #include "response.h"
 #include "utils.h"
 #include "request.h"
@@ -35,8 +36,6 @@ static int convert_int(const char* value, int* error)
     }
     return atoi(value);
 }
-
-static const char* METHODS[2] = {"avg", "visits"};
 
 void request_handler(struct evhttp_request* req, void* arg)
 {
@@ -223,8 +222,14 @@ error:
     }
 
     /* do processing */
-    res = process_entity(arg, entity, id, method, write, &params, body,
-                         &response);
+    if(method == METHOD_DEFAULT)
+    {
+        res = process_entity(arg, entity, id, write, body, &response);
+    }
+    else
+    {
+        res = execute_method(arg, entity, id, method, &params, &response);
+    }
 
     switch(res)
     {

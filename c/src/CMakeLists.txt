@@ -9,6 +9,7 @@ set(SRCS
   request.c
   response.c
   entity.c
+  methods.c
 )
 
 # add assembler listing

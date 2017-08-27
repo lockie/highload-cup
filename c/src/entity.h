@@ -24,18 +24,6 @@ typedef struct
 
 extern const entity_t ENTITIES[3];
 
-typedef struct
-{
-    int fromDate;
-    int toDate;
-
-    const char* country;
-    int toDistance;
-
-    int fromAge;
-    int toAge;
-    char gender;
-} parameters_t;
 
 /* NOTE entity is index in ENTITIES array */
 int process_entity(database_t* database,
