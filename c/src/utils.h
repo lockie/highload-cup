@@ -26,6 +26,10 @@
             if(!(IS_SET(NDEBUG)))                       \
                 fprintf(stderr, "%s failed.\n", #x);    \
             goto cleanup;}}
+#define CHECK_ZERO(x) {if((x)) {                    \
+            if(!(IS_SET(NDEBUG)))                       \
+                fprintf(stderr, "%s failed.\n", #x);    \
+            goto cleanup;}}
 
 #define MEASURE_DURATION(x, s) {struct timespec start, end;              \
     clock_gettime(CLOCK_MONOTONIC_RAW, &start); {x;}                     \

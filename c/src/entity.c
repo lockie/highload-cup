@@ -162,6 +162,31 @@ cleanup:
     return rc;
 }
 
+static int create_entity(database_t* database, cJSON* json, int e)
+{
+    int rc;
+
+    cJSON* json_id = cJSON_GetObjectItemCaseSensitive(json, "id");
+    if(!json_id || !cJSON_IsNumber(json_id))
+    {
+        return PROCESS_RESULT_BAD_REQUEST;
+    }
+    int id = json_id->valueint;
+    /* first, check the entity already exists by SELECTing it */
+    /* XXX room for optimization here: its possible to use EXISTS query here */
+    sqlite3_stmt* read_stmt = database->read_stmts[e];
+    CHECK_SQL(sqlite3_reset(read_stmt));
+    CHECK_SQL(sqlite3_bind_int(read_stmt, 1, id));
+    rc = sqlite3_step(read_stmt);
+    if(rc == SQLITE_ROW)
+        return PROCESS_RESULT_BAD_REQUEST;
+    CHECK_ZERO(insert_entity(database, json, e));
+    rc = 0;
+
+cleanup:
+    return rc;
+}
+
 int process_entity(database_t* database,
                    int entity, int id, int method, int write,
                    const parameters_t* parameters,
@@ -178,16 +203,10 @@ int process_entity(database_t* database,
 
         if(id == -1)  // new
         {
-            cJSON* json_id = cJSON_GetObjectItemCaseSensitive(root, "id");
-            if(!json_id || !cJSON_IsNumber(json_id))
-            {
-                *response = strdup("failed to get id");
-                return PROCESS_RESULT_BAD_REQUEST;
-            }
-            /* TODO : actual creation */
+            int rc = create_entity(database, root, entity);
             cJSON_Delete(root);
             *response = strdup("{}");
-            return PROCESS_RESULT_OK;
+            return rc;
         }
 
         int rc = update_entity(database, root, entity, id);

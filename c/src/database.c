@@ -1,7 +1,7 @@
 #include <miniz_zip.h>
-#include <cJSON.h>
 #include <event2/buffer.h>
 
+#include "entity.h"
 #include "database.h"
 
 
@@ -42,128 +42,15 @@ INSERT INTO users (id, email, first_name, last_name, gender, birth_date)
 VALUES (?, ?, ?, ?, ?, ?)
 )";
 
-static int insert_users(cJSON* users, sqlite3_stmt* stmt)
-{
-    int rc = 0;
-    for(cJSON* user = users->child; user; user = user->next)
-    {
-        CHECK_SQL(sqlite3_bind_int(
-                        stmt, 1,
-                        cJSON_GetObjectItemCaseSensitive(
-                            user, "id")->valueint));
-        CHECK_SQL(sqlite3_bind_text(
-                        stmt, 2,
-                        cJSON_GetObjectItemCaseSensitive(
-                            user, "email")->valuestring,
-                        -1, SQLITE_TRANSIENT));
-        CHECK_SQL(sqlite3_bind_text(
-                        stmt, 3,
-                        cJSON_GetObjectItemCaseSensitive(
-                            user, "first_name")->valuestring,
-                        -1, SQLITE_TRANSIENT));
-        CHECK_SQL(sqlite3_bind_text(
-                        stmt, 4,
-                        cJSON_GetObjectItemCaseSensitive(
-                            user, "last_name")->valuestring,
-                        -1, SQLITE_TRANSIENT));
-        CHECK_SQL(sqlite3_bind_text(
-                        stmt, 5,
-                        cJSON_GetObjectItemCaseSensitive(
-                            user, "gender")->valuestring,
-                        -1, SQLITE_TRANSIENT));
-        CHECK_SQL(sqlite3_bind_int(
-                        stmt, 6,
-                        cJSON_GetObjectItemCaseSensitive(
-                            user, "birth_date")->valueint));
-
-        CHECK_SQL(sqlite3_step(stmt));
-        CHECK_SQL(sqlite3_reset(stmt));
-    }
-
-cleanup:
-    return rc;
-}
-
 static const char* INSERT_VISIT = R"(
 INSERT INTO visits (id, location, user, visited_at, mark)
 VALUES (?, ?, ?, ?, ?)
 )";
 
-static int insert_visits(cJSON* visits, sqlite3_stmt* stmt)
-{
-    int rc = 0;
-    for(cJSON* visit = visits->child; visit; visit = visit->next)
-    {
-        CHECK_SQL(sqlite3_bind_int(
-                      stmt, 1,
-                      cJSON_GetObjectItemCaseSensitive(
-                          visit, "id")->valueint));
-        CHECK_SQL(sqlite3_bind_int(
-                      stmt, 2,
-                      cJSON_GetObjectItemCaseSensitive(
-                          visit, "location")->valueint));
-        CHECK_SQL(sqlite3_bind_int(
-                      stmt, 3,
-                      cJSON_GetObjectItemCaseSensitive(
-                          visit, "user")->valueint));
-        CHECK_SQL(sqlite3_bind_int(
-                      stmt, 4,
-                      cJSON_GetObjectItemCaseSensitive(
-                          visit, "visited_at")->valueint));
-        CHECK_SQL(sqlite3_bind_int(
-                      stmt, 5,
-                      cJSON_GetObjectItemCaseSensitive(
-                          visit, "mark")->valueint));
-
-        CHECK_SQL(sqlite3_step(stmt));
-        CHECK_SQL(sqlite3_reset(stmt));
-    }
-
-cleanup:
-    return rc;
-}
-
 static const char* INSERT_LOCATION = R"(
 INSERT INTO locations (id, place, country, city, distance)
 VALUES (?, ?, ?, ?, ?)
 )";
-
-static int insert_locations(cJSON* locations, sqlite3_stmt* stmt)
-{
-    int rc = 0;
-    for(cJSON* location = locations->child; location; location = location->next)
-    {
-        CHECK_SQL(sqlite3_bind_int(
-                      stmt, 1,
-                      cJSON_GetObjectItemCaseSensitive(
-                          location, "id")->valueint));
-        CHECK_SQL(sqlite3_bind_text(
-                      stmt, 2,
-                      cJSON_GetObjectItemCaseSensitive(
-                          location, "place")->valuestring,
-                      -1, SQLITE_TRANSIENT));
-        CHECK_SQL(sqlite3_bind_text(
-                      stmt, 3,
-                      cJSON_GetObjectItemCaseSensitive(
-                          location, "country")->valuestring,
-                      -1, SQLITE_TRANSIENT));
-        CHECK_SQL(sqlite3_bind_text(
-                      stmt, 4,
-                      cJSON_GetObjectItemCaseSensitive(
-                          location, "city")->valuestring,
-                      -1, SQLITE_TRANSIENT));
-        CHECK_SQL(sqlite3_bind_int(
-                      stmt, 5,
-                      cJSON_GetObjectItemCaseSensitive(
-                          location, "distance")->valueint));
-
-        CHECK_SQL(sqlite3_step(stmt));
-        CHECK_SQL(sqlite3_reset(stmt));
-    }
-
-cleanup:
-    return rc;
-}
 
 static const char* SELECT_USER = R"(
 SELECT id, email, first_name, last_name, gender, birth_date
@@ -195,10 +82,109 @@ UPDATE locations SET place=?2, country=?3, city=?4, distance=?5
 WHERE id = ?1
 )";
 
+static inline int bind_val(sqlite3_stmt* stmt, const entity_t* entity,
+                           cJSON* json, int i)
+{
+    if(entity->column_types[i] == COLUMN_TYPE_NONE)
+        return 0;
+
+    int rc;
+    const void* value;
+
+    cJSON* arg = cJSON_GetObjectItemCaseSensitive(json, entity->column_names[i]);
+    if(!arg || cJSON_IsNull(arg))
+        return PROCESS_RESULT_BAD_REQUEST;
+
+    if(entity->column_types[i] == COLUMN_TYPE_INT)
+    {
+        /*
+        if(!cJSON_IsInt(arg))
+            return PROCESS_RESULT_BAD_REQUEST;
+        */
+        value = (void*)(intptr_t)arg->valueint;
+    }
+    else
+    {
+        /*
+        if(!cJSON_IsString(arg))
+            return PROCESS_RESULT_BAD_REQUEST;
+        */
+        value = arg->valuestring;
+    }
+
+    if(entity->column_types[i] == COLUMN_TYPE_INT)
+    {
+        CHECK_SQL(sqlite3_bind_int(stmt, i+2, (intptr_t)value));
+    }
+    else
+    {
+        CHECK_SQL(sqlite3_bind_text(stmt, i+2, value, -1, SQLITE_TRANSIENT));
+    }
+
+cleanup:
+    return rc;
+}
+
+int insert_entity(database_t* database, cJSON* json, int e)
+{
+    int rc;
+    const entity_t* entity = &ENTITIES[e];
+    sqlite3_stmt* insert_stmt = database->create_stmts[e];
+    CHECK_SQL(sqlite3_reset(insert_stmt));
+    cJSON* id = cJSON_GetObjectItemCaseSensitive(json, "id");
+    if(!id || !cJSON_IsNumber(id))
+        return PROCESS_RESULT_BAD_REQUEST;
+    CHECK_SQL(sqlite3_bind_int(insert_stmt, 1, id->valueint));
+    for(int i = 0; i < 5; i++)
+    {
+        CHECK_ZERO(bind_val(insert_stmt, entity, json, i));
+    }
+    CHECK_SQL(sqlite3_step(insert_stmt));
+    if(rc == SQLITE_DONE)
+        rc = 0;
+
+cleanup:
+    return rc;
+}
+
+static int insert_entities(database_t* database, cJSON* entities, int e)
+{
+    int rc = 0;
+    for(cJSON* entity = entities->child; entity; entity = entity->next)
+    {
+        CHECK_ZERO(insert_entity(database, entity, e));
+    }
+
+cleanup:
+    return rc;
+}
+
 static int setup_statements(database_t* database)
 {
     int rc = 0;
     sqlite3* db = database->db;
+
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  INSERT_USER,
+                  strlen(INSERT_USER),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->create_stmts[0],
+                  NULL));
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  INSERT_VISIT,
+                  strlen(INSERT_VISIT),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->create_stmts[1],
+                  NULL));
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  INSERT_LOCATION,
+                  strlen(INSERT_LOCATION),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->create_stmts[2],
+                  NULL));
 
     CHECK_SQL(sqlite3_prepare_v3(
                   db,
@@ -261,30 +247,8 @@ int bootstrap(database_t* database)
     memset(&archive, 0, sizeof(archive));
 
     CHECK_SQL(sqlite3_exec(db, DDL, NULL, NULL, NULL));
+    CHECK_SQL(setup_statements(database));
     CHECK_SQL(sqlite3_exec(db, "BEGIN", NULL, NULL, NULL));
-
-    sqlite3_stmt *insert_user_stmt, *insert_visit_stmt, *insert_location_stmt;
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  INSERT_USER,
-                  strlen(INSERT_USER),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &insert_user_stmt,
-                  NULL));
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  INSERT_VISIT,
-                  strlen(INSERT_VISIT),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &insert_visit_stmt,
-                  NULL));
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  INSERT_LOCATION,
-                  strlen(INSERT_LOCATION),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &insert_location_stmt,
-                  NULL));
 
     if(!mz_zip_reader_init_file(&archive, "/tmp/data/data.zip", 0))
     {
@@ -314,21 +278,21 @@ int bootstrap(database_t* database)
         cJSON* root = cJSON_Parse(data);
         if(root)
         {
-            // XXX omitting checks, assuming inputs are correct
+            // XXX omitting some checks, assuming inputs are correct
             cJSON *users, *visits, *locations;
             if((users = cJSON_GetObjectItemCaseSensitive(root, "users")))
             {
-                CHECK_SQL(insert_users(users, insert_user_stmt));
+                CHECK_ZERO(insert_entities(database, users, 0));
             }
             /* NOTE default SQLite's PRAGMA foreign_keys is OFF, so
                we can safely insert visits without any particular order */
-            if((visits = cJSON_GetObjectItemCaseSensitive(root, "visits")))
+            else if((visits = cJSON_GetObjectItemCaseSensitive(root, "visits")))
             {
-                CHECK_SQL(insert_visits(visits, insert_visit_stmt));
+                CHECK_ZERO(insert_entities(database, visits, 1));
             }
-            if((locations = cJSON_GetObjectItemCaseSensitive(root, "locations")))
+            else if((locations = cJSON_GetObjectItemCaseSensitive(root, "locations")))
             {
-                CHECK_SQL(insert_locations(locations, insert_location_stmt));
+                CHECK_SQL(insert_entities(database, locations, 2));
             }
         }
         else
@@ -348,16 +312,10 @@ cleanup:
     {
         CHECK_SQL(sqlite3_exec(db, "COMMIT",
                                NULL, NULL, NULL));
-
-        CHECK_SQL(sqlite3_finalize(insert_location_stmt));
-        CHECK_SQL(sqlite3_finalize(insert_visit_stmt));
-        CHECK_SQL(sqlite3_finalize(insert_user_stmt));
-
         CHECK_SQL(sqlite3_exec(db, "PRAGMA foreign_keys = ON",
                                NULL, NULL, NULL));
         CHECK_SQL(sqlite3_exec(db, "ANALYZE",
                                NULL, NULL, NULL));
-        CHECK_SQL(setup_statements(database));
     }
     return rc;
 }
