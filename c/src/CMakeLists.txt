@@ -11,7 +11,7 @@ set(SRCS
 )
 
 # add assembler listing
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+if(CMAKE_COMPILER_IS_GNUCC)
   foreach(FILE ${SRCS})
     get_filename_component(NAME ${FILE} NAME_WE)
     set_source_files_properties (${FILE}

@@ -22,7 +22,7 @@ const entity_t ENTITIES[3] = {
     },
     {"locations", {COLUMN_TYPE_STR, COLUMN_TYPE_STR, COLUMN_TYPE_STR,
                    COLUMN_TYPE_INT, COLUMN_TYPE_NONE},
-     {"place", "country", "city", "distance"},
+     {"place", "country", "city", "distance", NULL},
      "{\"id\":%d,\"place\":\"%s\",\"country\":\"%s\",\"city\":\"%s\","
      "\"distance\":%d}",
      52
@@ -48,6 +48,8 @@ static char* read_entity(database_t* database, int e, int id)
     CHECK_SQL(sqlite3_reset(stmt));
     CHECK_SQL(sqlite3_bind_int(stmt, 1, id));
     CHECK_SQL(sqlite3_step(stmt));
+    if(rc == SQLITE_DONE)
+        return NULL;
     rc = 0;
     size_t size = strlen(entity->format) + entity->extrasize;
     result = (char*)malloc(size);
@@ -129,7 +131,7 @@ cleanup:
 
 static int update_entity(database_t* database, cJSON* json, int e, int id)
 {
-    int rc = -1;
+    int rc;
     const entity_t* entity = &ENTITIES[e];
 
     /* first, check the entity even exists by SELECTing it */
@@ -152,7 +154,7 @@ static int update_entity(database_t* database, cJSON* json, int e, int id)
     CHECK_SQL(sqlite3_bind_int(stmt, 1, id)); // id
     for(int i = 0; i < 5; i++)
     {
-        CHECK_SQL(bind_val(stmt, read_stmt, entity, json, i));
+        CHECK_ZERO(bind_val(stmt, read_stmt, entity, json, i));
     }
     CHECK_SQL(sqlite3_step(stmt));
     if(rc == SQLITE_DONE)
@@ -216,5 +218,5 @@ int process_entity(database_t* database,
     }
 
     *response = read_entity(database, entity, id);
-    return *response ? PROCESS_RESULT_OK : PROCESS_RESULT_ERROR;
+    return *response ? PROCESS_RESULT_OK : PROCESS_RESULT_NOT_FOUND;
 }
