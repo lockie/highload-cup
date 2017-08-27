@@ -156,8 +156,8 @@ void request_handler(struct evhttp_request* req, void* arg)
         {
             CHECK_POSITIVE(evhttp_parse_query_str(&URI[n+1], &query));
 
-            const char* gender = evhttp_find_header(&query, "toAge");
-            if(gender && strlen(gender) != 2)
+            const char* gender = evhttp_find_header(&query, "gender");
+            if(gender && strlen(gender) != 1)
             {
                 evhttp_clear_headers(&query);
                 handle_bad_request(req, "invalid gender parameter value");
