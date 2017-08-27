@@ -7,6 +7,7 @@ set(SRCS
   main.c
   database.c
   request.c
+  response.c
   entity.c
 )
 

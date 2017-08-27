@@ -280,19 +280,17 @@ int bootstrap(database_t* database)
         {
             // XXX omitting some checks, assuming inputs are correct
             cJSON *users, *visits, *locations;
-            if((users = cJSON_GetObjectItemCaseSensitive(root, "users")))
+            for(int i = 0; i < 3; i++)
             {
-                CHECK_ZERO(insert_entities(database, users, 0));
-            }
-            /* NOTE default SQLite's PRAGMA foreign_keys is OFF, so
-               we can safely insert visits without any particular order */
-            else if((visits = cJSON_GetObjectItemCaseSensitive(root, "visits")))
-            {
-                CHECK_ZERO(insert_entities(database, visits, 1));
-            }
-            else if((locations = cJSON_GetObjectItemCaseSensitive(root, "locations")))
-            {
-                CHECK_SQL(insert_entities(database, locations, 2));
+                cJSON* entities =
+                    cJSON_GetObjectItemCaseSensitive(root, ENTITIES[i].name);
+                if(entities)
+                {
+                    /* NOTE default SQLite's PRAGMA foreign_keys is OFF, so
+                       we can safely insert visits without any particular order */
+                    CHECK_ZERO(insert_entities(database, entities, i));
+                    break;
+                }
             }
         }
         else

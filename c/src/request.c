@@ -10,49 +10,10 @@
 
 #include "database.h"
 #include "entity.h"
+#include "response.h"
 #include "utils.h"
 #include "request.h"
 
-
-static const char* ERR_FORMAT = "{\"error\": \"%s\"}";
-
-static void handle_bad_request(struct evhttp_request* req, const char* msg)
-{
-    struct evbuffer* buf;
-    CHECK_NONZERO(buf = evbuffer_new());
-
-    CHECK_POSITIVE(
-        evbuffer_add_printf(buf, ERR_FORMAT, msg ? msg : "unknown error"));
-
-    evhttp_send_reply(req, HTTP_BADREQUEST, "Bad Request", buf);
-
-    evbuffer_free(buf);
-    return;
-
-cleanup:
-    if(buf)
-        evbuffer_free(buf);
-    evhttp_connection_free(req->evcon);
-}
-
-static void handle_not_found(struct evhttp_request* req)
-{
-    struct evbuffer* buf;
-    CHECK_NONZERO(buf = evbuffer_new());
-
-    static const char* message = "resource not found";
-    CHECK_POSITIVE(evbuffer_add(buf, message, strlen(message)));
-
-    evhttp_send_reply(req, HTTP_NOTFOUND, "Not Found", buf);
-
-    evbuffer_free(buf);
-    return;
-
-cleanup:
-    if(buf)
-        evbuffer_free(buf);
-    evhttp_connection_free(req->evcon);
-}
 
 static int convert_int(const char* value, int* error)
 {
@@ -254,6 +215,7 @@ error:
     /* do processing */
     res = process_entity(arg, entity, id, method, write, &params, body,
                          &response);
+
     switch(res)
     {
     case PROCESS_RESULT_OK:
