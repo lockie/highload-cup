@@ -24,6 +24,8 @@ typedef struct
     sqlite3_stmt* create_stmts[3];
     sqlite3_stmt* read_stmts[3];
     sqlite3_stmt* write_stmts[3];
+
+    int timestamp;  // current timestamp from options.txt
 } database_t;
 
 int bootstrap(database_t*, const char*);

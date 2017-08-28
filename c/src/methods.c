@@ -25,11 +25,11 @@ WHERE visits.location=%d
 static const char* AVG_USER_GENDER = " AND users.gender=\"%c\"";
 
 static const char* AVG_USER_FROM_AGE = R"(
-AND date(users.birth_date, 'unixepoch')<date('now', '-%d years')
+AND date(users.birth_date, 'unixepoch')<date('%d', 'unixepoch', '-%d years')
 )";
 
 static const char* AVG_USER_TO_AGE = R"(
-AND date(users.birth_date, 'unixepoch')>date('now', '-%d years')
+AND date(users.birth_date, 'unixepoch')>date('%d', 'unixepoch', '-%d years')
 )";
 
 int avg_callback(void* arg, int argc, char **argv, char **col)
@@ -88,10 +88,10 @@ int execute_avg(database_t* database, int id,
                         AVG_USER_GENDER, params->gender);
     if(params->fromAge != INT_MAX)
         len += snprintf(&sql[len], sql_len-len,
-                        AVG_USER_FROM_AGE, params->fromAge);
+                        AVG_USER_FROM_AGE, database->timestamp, params->fromAge);
     if(params->toAge != INT_MAX)
         len += snprintf(&sql[len], sql_len-len,
-                        AVG_USER_TO_AGE, params->toAge);
+                        AVG_USER_TO_AGE, database->timestamp, params->toAge);
 
     double average = 0;
     CHECK_SQL(sqlite3_exec(database->db, sql, avg_callback, &average, NULL));

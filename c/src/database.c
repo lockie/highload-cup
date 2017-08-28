@@ -260,6 +260,8 @@ cleanup:
 }
 
 
+static const char* OPTIONS = "options.txt";
+
 int bootstrap(database_t* database, const char* filename)
 {
     int rc = 0;
@@ -267,6 +269,7 @@ int bootstrap(database_t* database, const char* filename)
     sqlite3* db;
     VERIFY_ZERO(sqlite3_open(":memory:", &db));
     database->db = db;
+    database->timestamp = time(NULL);
 
     mz_zip_archive archive;
     memset(&archive, 0, sizeof(archive));
@@ -301,6 +304,12 @@ int bootstrap(database_t* database, const char* filename)
             // хромаем дальше
             fprintf(stderr, "Processing file '%s' in zip archive FAILED!\n",
                     stat.m_filename);
+            continue;
+        }
+
+        if(strncmp(stat.m_filename, OPTIONS, strlen(OPTIONS)) == 0)
+        {
+            database->timestamp = atoi(data);
             continue;
         }
 
