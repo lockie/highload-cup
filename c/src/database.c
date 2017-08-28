@@ -432,6 +432,28 @@ int process_SQL(struct evhttp_request* req, void* arg)
     database_t* database = (database_t*)arg;
     CHECK_SQL(sqlite3_exec(database->db, body, SQL_callback, out_buf, NULL));
     evhttp_send_reply(req, HTTP_OK, "OK", out_buf);
+
+    // report some statistics
+    int curr, max;
+    if(sqlite3_status(SQLITE_STATUS_MEMORY_USED, &curr, &max, 0) == 0)
+        printf("MEMORY_USED: curr=%d max=%d\n", curr, max);
+    if(sqlite3_status(SQLITE_STATUS_PAGECACHE_USED, &curr, &max, 0) == 0)
+        printf("PAGECACHE_USED: curr=%d max=%d\n", curr, max);
+    if(sqlite3_status(SQLITE_STATUS_PAGECACHE_OVERFLOW, &curr, &max, 0) == 0)
+        printf("PAGECACHE_OVERFLOW: curr=%d max=%d\n", curr, max);
+    if(sqlite3_status(SQLITE_STATUS_SCRATCH_USED, &curr, &max, 0) == 0)
+        printf("SCRATCH_USED: curr=%d max=%d\n", curr, max);
+    if(sqlite3_status(SQLITE_STATUS_SCRATCH_OVERFLOW, &curr, &max, 0) == 0)
+        printf("SCRATCH_OVERFLOW: curr=%d max=%d\n", curr, max);
+    if(sqlite3_status(SQLITE_STATUS_MALLOC_SIZE, &curr, &max, 0) == 0)
+        printf("MALLOC_SIZE: curr=%d max=%d\n", curr, max);
+    if(sqlite3_status(SQLITE_STATUS_PARSER_STACK, &curr, &max, 0) == 0)
+        printf("PARSER_STACK: curr=%d max=%d\n", curr, max);
+    if(sqlite3_status(SQLITE_STATUS_PAGECACHE_SIZE, &curr, &max, 0) == 0)
+        printf("PAGECACHE_SIZE: curr=%d max=%d\n", curr, max);
+    if(sqlite3_status(SQLITE_STATUS_SCRATCH_SIZE, &curr, &max, 0) == 0)
+        printf("SCRATCH_SIZE: curr=%d max=%d\n", curr, max);
+
     rc = 0;
 
 cleanup:
