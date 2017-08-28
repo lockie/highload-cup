@@ -13,20 +13,17 @@ const entity_t ENTITIES[3] = {
      {"email", "first_name", "last_name", "gender", "birth_date"},
      "{\"id\":%d,\"email\":\"%s\",\"first_name\":\"%s\",\"last_name\":\"%s\","
      "\"gender\":\"%s\",\"birth_date\":%d}",
-     223
     },
     {"visits", {COLUMN_TYPE_INT, COLUMN_TYPE_INT, COLUMN_TYPE_INT,
                 COLUMN_TYPE_INT, COLUMN_TYPE_NONE},
      {"location", "user", "visited_at", "mark", NULL},
      "{\"id\":%d,\"location\":%d,\"user\":%d,\"visited_at\":%d,\"mark\":%d}",
-     52
     },
     {"locations", {COLUMN_TYPE_STR, COLUMN_TYPE_STR, COLUMN_TYPE_STR,
                    COLUMN_TYPE_INT, COLUMN_TYPE_NONE},
      {"place", "country", "city", "distance", NULL},
      "{\"id\":%d,\"place\":\"%s\",\"country\":\"%s\",\"city\":\"%s\","
      "\"distance\":%d}",
-     223
     }
 };
 
@@ -40,13 +37,15 @@ static inline const void* construct_arg(sqlite3_stmt* stmt,
         (const void*)sqlite3_column_text(stmt, i+1);
 }
 
-static char* read_entity(database_t* database, int e, int id)
+#define READ_ENTITY_BUFFER_SIZE 512
+static char READ_ENTITY_BUFFER[READ_ENTITY_BUFFER_SIZE];
+
+static const char* read_entity(database_t* database, int e, int id)
 {
     if(phase_hack)
         set_phase(database, 3);
 
     int rc;
-    char* result = NULL;
     const entity_t* entity = &ENTITIES[e];
     sqlite3_stmt* stmt = database->read_stmts[e];
     CHECK_SQL(sqlite3_reset(stmt));
@@ -55,43 +54,19 @@ static char* read_entity(database_t* database, int e, int id)
     if(rc == SQLITE_DONE)
         return NULL;
     rc = 0;
-    size_t size = strlen(entity->format) + entity->extrasize;
-    result = (char*)malloc(size);
-    int n = snprintf(result, size, entity->format,
+    snprintf(READ_ENTITY_BUFFER, READ_ENTITY_BUFFER_SIZE,
+                     entity->format,
                      sqlite3_column_int(stmt, 0),  /* id */
                      construct_arg(stmt, entity, 0),
                      construct_arg(stmt, entity, 1),
                      construct_arg(stmt, entity, 2),
                      construct_arg(stmt, entity, 3),
                      construct_arg(stmt, entity, 4));
-    if(n < 0)
-    {
-#ifndef NDEBUG
-        fprintf(stderr,
-                "%s %d: encoding error in snprintf()!\n",
-                entity->name, id);
-#endif // NDEBUG
-        rc = -1;
-        goto cleanup;
-    }
-    if((size_t)n >= size)
-    {
-#ifndef NDEBUG
-        fprintf(stderr,
-                "%s %d: incorrect calculated size for snprintf(): %d vs %zu !\n",
-                entity->name, id, n, size);
-#endif // NDEBUG
-        rc = -1;
-        goto cleanup;
-    }
 
 cleanup:
     if(rc != 0)
-    {
-        free(result);
         return NULL;
-    }
-    return result;
+    return READ_ENTITY_BUFFER;
 }
 
 static inline int bind_val(sqlite3_stmt* stmt, sqlite3_stmt* read_stmt,
@@ -198,14 +173,14 @@ cleanup:
 
 int process_entity(database_t* database,
                    int entity, int id, int write,
-                   const char* body, char** response)
+                   const char* body, const char** response)
 {
     if(write)
     {
         cJSON* root = cJSON_Parse(body);
         if(!root)
         {
-            *response = strdup("failed to parse JSON");
+            *response = "failed to parse JSON";
             return PROCESS_RESULT_BAD_REQUEST;
         }
 
@@ -213,13 +188,13 @@ int process_entity(database_t* database,
         {
             int rc = create_entity(database, root, entity);
             cJSON_Delete(root);
-            *response = strdup("{}");
+            *response = "{}";
             return rc;
         }
 
         int rc = update_entity(database, root, entity, id);
         cJSON_Delete(root);
-        *response = strdup("{}");
+        *response = "{}";
         return rc;
     }
 

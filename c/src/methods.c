@@ -42,12 +42,15 @@ int avg_callback(void* arg, int argc, char **argv, char **col)
     return 0;
 }
 
+#define AVG_RESULT_BUFFER_SIZE 16
+static char AVG_RESULT_BUFFER[AVG_RESULT_BUFFER_SIZE];
+
 int execute_avg(database_t* database, int id,
-                const parameters_t* params, char** response)
+                const parameters_t* params, const char** response)
 {
     if(params->gender && params->gender != 'm' && params->gender != 'f')
     {
-        *response = strdup("invalid gender");
+        *response = "invalid gender";
         return PROCESS_RESULT_BAD_REQUEST;
     }
 
@@ -97,13 +100,14 @@ int execute_avg(database_t* database, int id,
     CHECK_SQL(sqlite3_exec(database->db, sql, avg_callback, &average, NULL));
     if(average == 0)
     {
-        *response = strdup("{\"avg\": 0.0}");
+        strncpy(AVG_RESULT_BUFFER, "{\"avg\": 0.0}", AVG_RESULT_BUFFER_SIZE);
     }
     else
     {
-        *response = malloc(16);
-        snprintf(*response, 16, "{\"avg\":%.5f}", average);
+        snprintf(AVG_RESULT_BUFFER, AVG_RESULT_BUFFER_SIZE,
+                 "{\"avg\":%.5f}", average);
     }
+    *response = AVG_RESULT_BUFFER;
 
 cleanup:
     return rc;
@@ -123,24 +127,24 @@ static const char* VISITS_ORDER = " ORDER BY visits.visited_at";
 
 static const char* VISIT_FORMAT = "{\"%s\":%s,\"%s\":%s,\"%s\":\"%s\"},";
 
+#define VISITS_RESULT_BUFFER_SIZE 8192
+static char VISITS_RESULT_BUFFER[VISITS_RESULT_BUFFER_SIZE];
+
 int visits_callback(void* arg, int argc, char **argv, char **col)
 {
     (void)argc;
     char** response = (char**)arg;
-
-    /* TODO : probably use cJSON here to avoid bunch of mallocs */
-    int n = snprintf(NULL, 0, VISIT_FORMAT,
-                     col[0], argv[0], col[1], argv[1], col[2], argv[2]);
-
-    size_t len = strlen(*response);
-    *response = realloc(*response, len+n+1);
-    snprintf(&(*response)[len], n+1, VISIT_FORMAT,
-             col[0], argv[0], col[1], argv[1], col[2], argv[2]);
+    char* buffer = *response;
+    *response = buffer + snprintf(buffer,
+        VISITS_RESULT_BUFFER_SIZE - (VISITS_RESULT_BUFFER - buffer),
+        VISIT_FORMAT, col[0], argv[0], col[1], argv[1], col[2], argv[2]);
     return 0;
 }
 
+static const char* VISITS_RESULT_START = "{\"visits\":[ ";
+
 int execute_visits(database_t* database, int id,
-                   const parameters_t* params, char** response)
+                   const parameters_t* params, const char** response)
 {
     int rc;
     const size_t sql_len = strlen(VISITS) + strlen(FROM_DATE) +
@@ -171,27 +175,25 @@ int execute_visits(database_t* database, int id,
     if(params->toDistance != INT_MAX)
         len += snprintf(&sql[len], sql_len-len,
                         VISITS_TO_DISTANCE, params->toDistance);
-    if(params->country)
+    if(params->country[0])
         len += snprintf(&sql[len], sql_len-len,
                         VISITS_COUNTRY, params->country);
     len += snprintf(&sql[len], sql_len-len,
                     "%s", VISITS_ORDER);
 
-    *response = strdup("{\"visits\":[ ");
-
-
-    CHECK_SQL(sqlite3_exec(database->db, sql, visits_callback, response, NULL));
-
-    size_t rlen = strlen(*response);
-    *response = realloc(*response, rlen + 2);
-    strcpy(&(*response)[rlen-1], "]}");
+    strcpy(VISITS_RESULT_BUFFER, VISITS_RESULT_START);
+    char* arg = VISITS_RESULT_BUFFER + strlen(VISITS_RESULT_START);
+    char** argptr = &arg;
+    CHECK_SQL(sqlite3_exec(database->db, sql, visits_callback, argptr, NULL));
+    strcpy(*argptr-1, "]}");
+    *response = VISITS_RESULT_BUFFER;
 
 cleanup:
     return rc;
 }
 
 int execute_method(database_t* database, int entity, int id, int method,
-                   const parameters_t* params, char** response)
+                   const parameters_t* params, const char** response)
 {
     switch(method)
     {

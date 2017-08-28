@@ -19,7 +19,6 @@ typedef struct
     int column_types[5];
     const char* column_names[5];
     const char* format;
-    size_t extrasize;
 } entity_t;
 
 extern const entity_t ENTITIES[3];
@@ -28,6 +27,6 @@ extern const entity_t ENTITIES[3];
 /* NOTE entity is index in ENTITIES array */
 int process_entity(database_t* database,
                    int entity, int id, int write,
-                   const char* body, char** response);
+                   const char* body, const char** response);
 
 #endif  // _ENTITY_H_

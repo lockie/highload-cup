@@ -46,7 +46,7 @@ void request_handler(struct evhttp_request* req, void* arg)
     const char* method_str;
     char* identifier;
     char* body = NULL;
-    char* response = NULL;
+    const char* response = NULL;
     int write = 0, res, id, method = METHOD_DEFAULT;
     size_t i, n;
 
@@ -149,7 +149,7 @@ void request_handler(struct evhttp_request* req, void* arg)
     }
 
     /* figure query parameters */
-    parameters_t params = {INT_MAX, INT_MAX, NULL, INT_MAX, INT_MAX, INT_MAX, 0};
+    parameters_t params = {INT_MAX, INT_MAX, {0}, INT_MAX, INT_MAX, INT_MAX, 0};
     if(URI[n] == '?')
     {
         if(method != METHOD_DEFAULT)
@@ -180,7 +180,7 @@ void request_handler(struct evhttp_request* req, void* arg)
                 if(country && country[0] == 0)
                     goto error;
                 if(country)
-                    params.country = strdup(country);
+                    strncpy(params.country, country, 64);
                 params.toDistance = convert_int(
                     evhttp_find_header(&query, "toDistance"), &e);
                 if(e) goto error;
@@ -253,10 +253,8 @@ error:
         goto cleanup;
     }
 
-    free(response);
     return;
 
 cleanup:
-    free(params.country);
     evhttp_connection_free(req->evcon);
 }
