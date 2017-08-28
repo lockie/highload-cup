@@ -26,11 +26,13 @@ typedef struct
     sqlite3_stmt* write_stmts[3];
 
     int timestamp;  // current timestamp from options.txt
+    int phase;  // HACK : trying to determine current testing phase :E
 } database_t;
 
 int bootstrap(database_t*, const char*);
 int process_SQL(struct evhttp_request*, void*);  // XXX debug
 int insert_entity(database_t*, cJSON*, int);
+void set_phase(database_t* database, int phase);
 
 
 #endif  // _DATABASE_H_

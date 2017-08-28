@@ -6,7 +6,7 @@ RUN apk add --no-cache --virtual .builddeps gcc tcl make cmake musl-dev file gen
 
 EXPOSE 80
 
-CMD /usr/local/bin/server -v -p 80 -d /tmp/data/data.zip
+CMD /usr/local/bin/server -v --phase-hack -p 80 -d /tmp/data/data.zip
 
 COPY . /usr/src/app
 WORKDIR /usr/src/app

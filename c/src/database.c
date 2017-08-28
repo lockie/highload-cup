@@ -137,6 +137,9 @@ cleanup:
 
 int insert_entity(database_t* database, cJSON* json, int e)
 {
+    if(phase_hack)
+        set_phase(database, 2);
+
     int rc;
     const entity_t* entity = &ENTITIES[e];
     sqlite3_stmt* insert_stmt = database->create_stmts[e];
@@ -270,6 +273,7 @@ int bootstrap(database_t* database, const char* filename)
     VERIFY_ZERO(sqlite3_open(":memory:", &db));
     database->db = db;
     database->timestamp = time(NULL);
+    database->phase = 0;
 
     mz_zip_archive archive;
     memset(&archive, 0, sizeof(archive));
@@ -362,6 +366,8 @@ cleanup:
                                NULL, NULL, NULL));
         CHECK_SQL(sqlite3_exec(db, "ANALYZE",
                                NULL, NULL, NULL));
+        if(phase_hack)
+            database->phase = 1;
     }
     return rc;
 }
@@ -397,4 +403,44 @@ cleanup:
     if(out_buf)
         evbuffer_free(out_buf);
     return rc;
+}
+
+void set_phase(database_t* database, int phase)
+{
+    if(phase == 2)
+    {
+        if(database->phase == 1)
+        {
+            database->phase = 2;
+            if(sqlite3_exec(database->db, "BEGIN", NULL, NULL, NULL) != 0)
+            {
+                database->phase = 0;
+                fprintf(
+                    stderr,
+                    "Phase hack: beginning transaction for phase 2 FAILED!\n");
+            }
+            else
+            {
+                fprintf(stderr, "Phase 2 BEGIN: success\n");
+            }
+        }
+    }
+    if(phase == 3)
+    {
+        if(database->phase == 2)
+        {
+            database->phase = 3;
+            if(sqlite3_exec(database->db, "COMMIT", NULL, NULL, NULL) != 0)
+            {
+                database->phase = 0;
+                fprintf(
+                    stderr,
+                    "Phase hack: committing transaction for phase 2 FAILED!\n");
+            }
+            else
+            {
+                fprintf(stderr, "Phase 2 COMMIT: success\n");
+            }
+        }
+    }
 }

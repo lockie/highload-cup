@@ -42,6 +42,9 @@ static inline const void* construct_arg(sqlite3_stmt* stmt,
 
 static char* read_entity(database_t* database, int e, int id)
 {
+    if(phase_hack)
+        set_phase(database, 3);
+
     int rc;
     char* result = NULL;
     const entity_t* entity = &ENTITIES[e];
@@ -134,6 +137,9 @@ static int update_entity(database_t* database, cJSON* json, int e, int id)
 {
     int rc;
     const entity_t* entity = &ENTITIES[e];
+
+    if(phase_hack)
+        set_phase(database, 2);
 
     /* first, check the entity even exists by SELECTing it */
     sqlite3_stmt* read_stmt = database->read_stmts[e];

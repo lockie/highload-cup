@@ -15,6 +15,7 @@
 
 int verbose;
 int dump;
+int phase_hack;
 
 static void terminate_handler(int signum)
 {
@@ -38,6 +39,7 @@ int main(int argc, char** argv)
     if(cmdline_parser(argc, argv, &args) != 0)
         return EXIT_FAILURE;
 
+    phase_hack = args.phase_hack_flag;
     verbose = args.verbose_flag;
     dump = args.dump_flag;
     if(dump)
