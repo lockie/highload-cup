@@ -141,7 +141,7 @@ static inline int bind_val(sqlite3_stmt* stmt, const entity_t* entity,
         if(dump)
             printf("\"%s\"", (char*)value);
 #endif  // NDEBUG
-        CHECK_SQL(sqlite3_bind_text(stmt, i+2, value, -1, SQLITE_TRANSIENT));
+        CHECK_SQL(sqlite3_bind_text(stmt, i+2, value, -1, SQLITE_STATIC));
     }
 
 cleanup:

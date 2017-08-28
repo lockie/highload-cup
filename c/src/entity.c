@@ -101,7 +101,7 @@ static inline int bind_val(sqlite3_stmt* stmt, sqlite3_stmt* read_stmt,
     }
     else
     {
-        CHECK_SQL(sqlite3_bind_text(stmt, i+2, value, -1, SQLITE_TRANSIENT));
+        CHECK_SQL(sqlite3_bind_text(stmt, i+2, value, -1, SQLITE_STATIC));
     }
 
 cleanup:
