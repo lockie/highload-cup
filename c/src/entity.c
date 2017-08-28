@@ -19,14 +19,14 @@ const entity_t ENTITIES[3] = {
                 COLUMN_TYPE_INT, COLUMN_TYPE_NONE},
      {"location", "user", "visited_at", "mark", NULL},
      "{\"id\":%d,\"location\":%d,\"user\":%d,\"visited_at\":%d,\"mark\":%d}",
-     223
+     52
     },
     {"locations", {COLUMN_TYPE_STR, COLUMN_TYPE_STR, COLUMN_TYPE_STR,
                    COLUMN_TYPE_INT, COLUMN_TYPE_NONE},
      {"place", "country", "city", "distance", NULL},
      "{\"id\":%d,\"place\":\"%s\",\"country\":\"%s\",\"city\":\"%s\","
      "\"distance\":%d}",
-     52
+     223
     }
 };
 
@@ -75,8 +75,8 @@ static char* read_entity(database_t* database, int e, int id)
     {
 #ifndef NDEBUG
         fprintf(stderr,
-                "%s %d: incorrect calculated size for snprintf()!\n",
-                entity->name, id);
+                "%s %d: incorrect calculated size for snprintf(): %d vs %zu !\n",
+                entity->name, id, n, size);
 #endif // NDEBUG
         rc = -1;
         goto cleanup;

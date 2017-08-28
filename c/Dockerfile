@@ -13,4 +13,4 @@ WORKDIR /usr/src/app
 
 RUN mkdir /usr/src/app/build && cd /usr/src/app/build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release && make && cp server /usr/local/bin/server && \
-    apk del .builddeps && du -h /usr/local/bin/server
+    cd .. && rm -fr build && apk del .builddeps && du -h /usr/local/bin/server
