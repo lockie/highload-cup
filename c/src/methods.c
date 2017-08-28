@@ -68,13 +68,12 @@ int execute_avg(database_t* database, int id,
     char sql[sql_len];
     memset(sql, 0, sql_len);
 
-    /* first, check the location exists by SELECTing it */
-    /* XXX room for optimization here: its possible to use EXISTS query */
-    sqlite3_stmt* read_stmt = database->read_stmts[2];
-    CHECK_SQL(sqlite3_reset(read_stmt));
-    CHECK_SQL(sqlite3_bind_int(read_stmt, 1, id));
-    rc = sqlite3_step(read_stmt);
-    if(rc == SQLITE_DONE)
+    /* first, check the location exists */
+    sqlite3_stmt* exists_stmt = database->exists_stmts[2];
+    CHECK_SQL(sqlite3_reset(exists_stmt));
+    CHECK_SQL(sqlite3_bind_int(exists_stmt, 1, id));
+    CHECK_SQL(sqlite3_step(exists_stmt));
+    if(!sqlite3_column_int(exists_stmt, 0))
         return PROCESS_RESULT_NOT_FOUND;
 
     /* XXX room for optimization here: prepare statement beforehand. this could
@@ -154,13 +153,12 @@ int execute_visits(database_t* database, int id,
     char sql[sql_len];
     memset(sql, 0, sql_len);
 
-    /* first, check the user exists by SELECTing it */
-    /* XXX room for optimization here: its possible to use EXISTS query */
-    sqlite3_stmt* read_stmt = database->read_stmts[0];
-    CHECK_SQL(sqlite3_reset(read_stmt));
-    CHECK_SQL(sqlite3_bind_int(read_stmt, 1, id));
-    rc = sqlite3_step(read_stmt);
-    if(rc == SQLITE_DONE)
+    /* first, check the user exists */
+    sqlite3_stmt* exists_stmt = database->exists_stmts[0];
+    CHECK_SQL(sqlite3_reset(exists_stmt));
+    CHECK_SQL(sqlite3_bind_int(exists_stmt, 1, id));
+    CHECK_SQL(sqlite3_step(exists_stmt));
+    if(!sqlite3_column_int(exists_stmt, 0))
         return PROCESS_RESULT_NOT_FOUND;
 
     /* XXX room for optimization here: prepare statement beforehand. this could

@@ -156,16 +156,15 @@ static int create_entity(database_t* database, cJSON* json, int e)
         return PROCESS_RESULT_BAD_REQUEST;
     }
     int id = json_id->valueint;
-    /* first, check the entity already exists by SELECTing it */
-    /* XXX room for optimization here: its possible to use EXISTS query*/
-    sqlite3_stmt* read_stmt = database->read_stmts[e];
-    CHECK_SQL(sqlite3_reset(read_stmt));
-    CHECK_SQL(sqlite3_bind_int(read_stmt, 1, id));
-    rc = sqlite3_step(read_stmt);
-    if(rc == SQLITE_ROW)
+    /* first, check the entity already exists */
+    sqlite3_stmt* exists_stmt = database->exists_stmts[e];
+    CHECK_SQL(sqlite3_reset(exists_stmt));
+    CHECK_SQL(sqlite3_bind_int(exists_stmt, 1, id));
+    CHECK_SQL(sqlite3_step(exists_stmt));
+    if(sqlite3_column_int(exists_stmt, 0))
         return PROCESS_RESULT_BAD_REQUEST;
+
     CHECK_ZERO(insert_entity(database, json, e));
-    rc = 0;
 
 cleanup:
     return rc;

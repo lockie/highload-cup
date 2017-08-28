@@ -84,6 +84,19 @@ UPDATE locations SET place=?2, country=?3, city=?4, distance=?5
 WHERE id = ?1
 )";
 
+static const char* EXISTS_USER = R"(
+SELECT EXISTS(SELECT 1 FROM users WHERE id=?)
+)";
+
+static const char* EXISTS_VISIT = R"(
+SELECT EXISTS(SELECT 1 FROM visits WHERE id=?)
+)";
+
+static const char* EXISTS_LOCATION = R"(
+SELECT EXISTS(SELECT 1 FROM locations WHERE id=?)
+)";
+
+
 static inline int bind_val(sqlite3_stmt* stmt, const entity_t* entity,
                            cJSON* json, int i)
 {
@@ -256,6 +269,28 @@ static int setup_statements(database_t* database)
                   strlen(UPDATE_LOCATION),
                   SQLITE_PREPARE_PERSISTENT,
                   &database->write_stmts[2],
+                  NULL));
+
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  EXISTS_USER,
+                  strlen(EXISTS_USER),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->exists_stmts[0],
+                  NULL));
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  EXISTS_VISIT,
+                  strlen(EXISTS_VISIT),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->exists_stmts[1],
+                  NULL));
+    CHECK_SQL(sqlite3_prepare_v3(
+                  db,
+                  EXISTS_LOCATION,
+                  strlen(EXISTS_LOCATION),
+                  SQLITE_PREPARE_PERSISTENT,
+                  &database->exists_stmts[2],
                   NULL));
 
 cleanup:
