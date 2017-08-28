@@ -274,6 +274,12 @@ int bootstrap(database_t* database, const char* filename)
     mz_zip_archive archive;
     memset(&archive, 0, sizeof(archive));
 
+    CHECK_SQL(sqlite3_exec(db, "PRAGMA synchronous = OFF",
+                           NULL, NULL, NULL));
+    CHECK_SQL(sqlite3_exec(db, "PRAGMA temp_store = MEMORY",
+                           NULL, NULL, NULL));
+    CHECK_SQL(sqlite3_exec(db, "PRAGMA journal_mode = OFF",
+                           NULL, NULL, NULL));
     CHECK_SQL(sqlite3_exec(db, DDL, NULL, NULL, NULL));
     CHECK_SQL(setup_statements(database));
     CHECK_SQL(sqlite3_exec(db, "BEGIN", NULL, NULL, NULL));
@@ -354,11 +360,6 @@ cleanup:
                                NULL, NULL, NULL));
         CHECK_SQL(sqlite3_exec(db, "PRAGMA foreign_keys = ON",
                                NULL, NULL, NULL));
-        CHECK_SQL(sqlite3_exec(db, "PRAGMA synchronous = OFF",
-                               NULL, NULL, NULL));
-        CHECK_SQL(sqlite3_exec(db, "PRAGMA temp_store = MEMORY",
-                               NULL, NULL, NULL));
-        // TODO : try journal_mode = OFF. it will disable atomic COMMIT/ROLLBACK tho
         CHECK_SQL(sqlite3_exec(db, "ANALYZE",
                                NULL, NULL, NULL));
     }
