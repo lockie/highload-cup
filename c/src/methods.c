@@ -2,6 +2,7 @@
 #include <string.h>
 #include <limits.h>
 
+#include "response.h"
 #include "entity.h"
 #include "utils.h"
 #include "methods.h"
@@ -36,15 +37,12 @@ int avg_callback(void* arg, int argc, char **argv, char **col)
     return 0;
 }
 
-#define AVG_RESULT_BUFFER_SIZE 16
-static char AVG_RESULT_BUFFER[AVG_RESULT_BUFFER_SIZE];
-
 int execute_avg(database_t* database, int id,
-                const parameters_t* params, const char** response)
+                const parameters_t* params, char* response)
 {
     if(UNLIKELY(params->gender && params->gender != 'm' && params->gender != 'f'))
     {
-        *response = "invalid gender";
+        strcpy(response, "invalid gender");
         return PROCESS_RESULT_BAD_REQUEST;
     }
 
@@ -92,15 +90,10 @@ int execute_avg(database_t* database, int id,
     double average = 0;
     CHECK_SQL(sqlite3_exec(database->db, sql, avg_callback, &average, NULL));
     if(average == 0)
-    {
-        strncpy(AVG_RESULT_BUFFER, "{\"avg\": 0.0}", AVG_RESULT_BUFFER_SIZE);
-    }
+        strcpy(response, "{\"avg\": 0.0}");
     else
-    {
-        snprintf(AVG_RESULT_BUFFER, AVG_RESULT_BUFFER_SIZE,
+        snprintf(response, RESPONSE_BUFFER_SIZE,
                  "{\"avg\":%.5f}", average);
-    }
-    *response = AVG_RESULT_BUFFER;
 
 cleanup:
     return rc;
@@ -118,16 +111,15 @@ static const char* VISITS_ORDER = " ORDER BY visits.visited_at";
 
 static const char* VISIT_FORMAT = "{\"%s\":%s,\"%s\":%s,\"%s\":\"%s\"},";
 
-#define VISITS_RESULT_BUFFER_SIZE 8192
-static char VISITS_RESULT_BUFFER[VISITS_RESULT_BUFFER_SIZE];
 
 int visits_callback(void* arg, int argc, char **argv, char **col)
 {
     (void)argc;
-    char** response = (char**)arg;
-    char* buffer = *response;
-    *response = buffer + snprintf(buffer,
-        VISITS_RESULT_BUFFER_SIZE - (VISITS_RESULT_BUFFER - buffer),
+    char** argptr = (char**)arg;
+    char* response = argptr[0];
+    char* buffer = argptr[1];
+    argptr[1] = buffer + snprintf(buffer,
+        RESPONSE_BUFFER_SIZE - (response - buffer),
         VISIT_FORMAT, col[0], argv[0], col[1], argv[1], col[2], argv[2]);
     return 0;
 }
@@ -135,7 +127,7 @@ int visits_callback(void* arg, int argc, char **argv, char **col)
 static const char* VISITS_RESULT_START = "{\"visits\":[ ";
 
 int execute_visits(database_t* database, int id,
-                   const parameters_t* params, const char** response)
+                   const parameters_t* params, char* response)
 {
     int rc;
     const size_t sql_len = strlen(VISITS) + strlen(FROM_DATE) +
@@ -171,19 +163,17 @@ int execute_visits(database_t* database, int id,
     len += snprintf(&sql[len], sql_len-len,
                     "%s", VISITS_ORDER);
 
-    strcpy(VISITS_RESULT_BUFFER, VISITS_RESULT_START);
-    char* arg = VISITS_RESULT_BUFFER + strlen(VISITS_RESULT_START);
-    char** argptr = &arg;
+    strcpy(response, VISITS_RESULT_START);
+    char* argptr[2] = {response, response + strlen(VISITS_RESULT_START)};
     CHECK_SQL(sqlite3_exec(database->db, sql, visits_callback, argptr, NULL));
-    strcpy(*argptr-1, "]}");
-    *response = VISITS_RESULT_BUFFER;
+    strcpy(argptr[1]-1, "]}");
 
 cleanup:
     return rc;
 }
 
 int execute_method(database_t* database, int entity, int id, int method,
-                   const parameters_t* params, const char** response)
+                   const parameters_t* params, char* response)
 {
     switch(method)
     {

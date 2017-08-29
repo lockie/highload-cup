@@ -3,6 +3,7 @@
 
 #include <cJSON.h>
 
+#include "response.h"
 #include "utils.h"
 #include "entity.h"
 
@@ -37,10 +38,7 @@ static inline const void* construct_arg(sqlite3_stmt* stmt,
         (const void*)sqlite3_column_text(stmt, i+1);
 }
 
-#define READ_ENTITY_BUFFER_SIZE 512
-static char READ_ENTITY_BUFFER[READ_ENTITY_BUFFER_SIZE];
-
-static const char* read_entity(database_t* database, int e, int id)
+static int read_entity(database_t* database, int e, int id, char* response)
 {
     if(LIKELY(phase_hack))
         set_phase(database, 3);
@@ -52,9 +50,9 @@ static const char* read_entity(database_t* database, int e, int id)
     CHECK_SQL(sqlite3_bind_int(stmt, 1, id));
     CHECK_SQL(sqlite3_step(stmt));
     if(UNLIKELY(rc == SQLITE_DONE))
-        return NULL;
+        return -1;
     rc = 0;
-    snprintf(READ_ENTITY_BUFFER, READ_ENTITY_BUFFER_SIZE,
+    snprintf(response, RESPONSE_BUFFER_SIZE,
                      entity->format,
                      sqlite3_column_int(stmt, 0),  /* id */
                      construct_arg(stmt, entity, 0),
@@ -64,9 +62,7 @@ static const char* read_entity(database_t* database, int e, int id)
                      construct_arg(stmt, entity, 4));
 
 cleanup:
-    if(UNLIKELY(rc != 0))
-        return NULL;
-    return READ_ENTITY_BUFFER;
+    return rc;
 }
 
 static inline int bind_val(sqlite3_stmt* stmt, sqlite3_stmt* read_stmt,
@@ -172,14 +168,14 @@ cleanup:
 
 int process_entity(database_t* database,
                    int entity, int id, int write,
-                   const char* body, const char** response)
+                   const char* body, char* response)
 {
     if(write)
     {
         cJSON* root = cJSON_Parse(body);
         if(UNLIKELY(!root))
         {
-            *response = "failed to parse JSON";
+            strcpy(response, "failed to parse JSON");
             return PROCESS_RESULT_BAD_REQUEST;
         }
 
@@ -187,16 +183,17 @@ int process_entity(database_t* database,
         {
             int rc = create_entity(database, root, entity);
             cJSON_Delete(root);
-            *response = "{}";
+            strcpy(response, "{}");
             return rc;
         }
 
         int rc = update_entity(database, root, entity, id);
         cJSON_Delete(root);
-        *response = "{}";
+        strcpy(response, "{}");
         return rc;
     }
 
-    *response = read_entity(database, entity, id);
-    return *response ? PROCESS_RESULT_OK : PROCESS_RESULT_NOT_FOUND;
+    return read_entity(database, entity, id, response) == 0 ?
+        PROCESS_RESULT_OK :
+        PROCESS_RESULT_NOT_FOUND;
 }

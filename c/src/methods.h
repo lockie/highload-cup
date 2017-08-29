@@ -24,7 +24,7 @@ typedef struct
 extern const char* METHODS[2];
 
 int execute_method(database_t* database, int entity, int id, int method,
-                   const parameters_t* params, const char** response);
+                   const parameters_t* params, char* response);
 
 
 #endif  // _METHOD_H_

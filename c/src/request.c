@@ -46,7 +46,6 @@ void request_handler(struct evhttp_request* req, void* arg)
     const char* method_str;
     char* identifier;
     char* body = NULL;
-    const char* response = NULL;
     int write = 0, res, id, method = METHOD_DEFAULT;
     size_t i, n;
 
@@ -223,13 +222,14 @@ error:
     }
 
     /* do processing */
+    char response[RESPONSE_BUFFER_SIZE];
     if(method == METHOD_DEFAULT)
     {
-        res = process_entity(arg, entity, id, write, body, &response);
+        res = process_entity(arg, entity, id, write, body, response);
     }
     else
     {
-        res = execute_method(arg, entity, id, method, &params, &response);
+        res = execute_method(arg, entity, id, method, &params, response);
     }
 
     switch(res)
