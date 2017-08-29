@@ -57,7 +57,7 @@ typedef void* malloc_t(size_t);
 // XXX really weird bug in SQLite memsys5: calling realloc(0, sz) causes SIGSEGV
 void* memsys5_realloc(void* ptr, size_t sz)
 {
-    if(ptr)
+    if(LIKELY(ptr != NULL))
         return sqlite3_realloc(ptr, sz);
     return sqlite3_malloc(sz);
 }

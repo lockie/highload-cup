@@ -21,14 +21,14 @@ static int convert_int(const char* value, int* error)
     if(!value)
         return INT_MAX;
     size_t len = strlen(value);
-    if(len == 0)
+    if(UNLIKELY(len == 0))
     {
         *error = 1;
         return INT_MAX;
     }
     for(size_t i = 0; i < len; i++)
     {
-        if(!isdigit(value[i]))
+        if(UNLIKELY(!isdigit(value[i])))
         {
             *error = 1;
             return INT_MAX;
@@ -69,12 +69,12 @@ void request_handler(struct evhttp_request* req, void* arg)
         if(strncmp(&URI[1], ENTITIES[i].name, strlen(ENTITIES[i].name)) == 0)
         {
             entity = i;
-            if(URI[strlen(ENTITIES[i].name)+1] != 47) /* / */
+            if(UNLIKELY(URI[strlen(ENTITIES[i].name)+1] != 47)) /* / */
                 entity = -1;
             break;
         }
     }
-    if(entity == -1)
+    if(UNLIKELY(entity == -1))
     {
         handle_bad_request(req, "invalid entity");
         return;
@@ -98,7 +98,7 @@ void request_handler(struct evhttp_request* req, void* arg)
     n = strlen(ENTITIES[i].name) + 2;
     identifier = alloca(strlen(URI) - n + 1);
     strncpy(identifier, &URI[n], strlen(URI) - n + 1);
-    if(write && strncmp(identifier, "new", 3) == 0)
+    if(UNLIKELY(write && strncmp(identifier, "new", 3) == 0))
     {
         n += 3;
         id = -1;
@@ -112,14 +112,14 @@ void request_handler(struct evhttp_request* req, void* arg)
                 identifier[i] = 0;
                 break;
             }
-            if(!isdigit(identifier[i]))
+            if(UNLIKELY(!isdigit(identifier[i])))
             {
                 /* handle_bad_request(req, "invalid id"); */
                 handle_not_found(req); /* yeah sure */
                 return;
             }
         }
-        if(i == 0)
+        if(UNLIKELY(i == 0))
         {
             handle_bad_request(req, "missing id");
             return;
@@ -138,7 +138,7 @@ void request_handler(struct evhttp_request* req, void* arg)
             {
                 method = i;
                 n += strlen(METHODS[i]);
-                if(URI[n] && URI[n] != '?')
+                if(UNLIKELY(URI[n] && URI[n] != '?'))
                 {
                     handle_bad_request(req, "invalid query string");
                     return;
@@ -170,27 +170,28 @@ void request_handler(struct evhttp_request* req, void* arg)
 
                 params.fromDate = convert_int(
                     evhttp_find_header(&query, "fromDate"), &e);
-                if(e) goto error;
+                if(UNLIKELY(e)) goto error;
                 params.toDate = convert_int(
                     evhttp_find_header(&query, "toDate"), &e);
-                if(e) goto error;
+                if(UNLIKELY(e)) goto error;
 
                 const char* country =
                     evhttp_find_header(&query, "country");
-                if(country && country[0] == 0)
+                if(UNLIKELY(country && country[0] == 0))
                     goto error;
                 if(country)
                     strncpy(params.country, country, 64);
                 params.toDistance = convert_int(
                     evhttp_find_header(&query, "toDistance"), &e);
-                if(e) goto error;
+                if(UNLIKELY(e)) goto error;
 
                 params.fromAge = convert_int(
                     evhttp_find_header(&query, "fromAge"), &e);
-                if(e) goto error;
+                if(UNLIKELY(e)) goto error;
                 params.toAge = convert_int(
                     evhttp_find_header(&query, "toAge"), &e);
-                if(e) goto error;
+                if(UNLIKELY(e)) goto error;
+
                 params.gender = gender ? gender[0] : 0;
 
                 evhttp_clear_headers(&query);
@@ -205,7 +206,7 @@ error:
     }
     else
     {
-        if(URI[n])
+        if(UNLIKELY(URI[n]))
         {
             handle_bad_request(req, "invalid query string tail");
             return;
@@ -213,7 +214,7 @@ error:
     }
 
     /* get POST body, if any */
-    if(write)
+    if(UNLIKELY(write))
     {
         in_buf = evhttp_request_get_input_buffer(req);
         size_t length = evbuffer_get_length(in_buf);

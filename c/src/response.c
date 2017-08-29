@@ -24,7 +24,7 @@ void handle_bad_request(struct evhttp_request* req, const char* msg)
     return;
 
 cleanup:
-    if(buf)
+    if(LIKELY(buf))
         evbuffer_free(buf);
     evhttp_connection_free(req->evcon);
 }
@@ -43,7 +43,7 @@ void handle_not_found(struct evhttp_request* req)
     return;
 
 cleanup:
-    if(buf)
+    if(LIKELY(buf))
         evbuffer_free(buf);
     evhttp_connection_free(req->evcon);
 }

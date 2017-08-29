@@ -37,7 +37,7 @@ int avg_callback(void* arg, int argc, char **argv, char **col)
     (void)argc;
     (void)col;
     double* avg = (double*)arg;
-    if(argv[0])
+    if(LIKELY(argv[0]))
         *avg = atof(argv[0]);
     return 0;
 }
@@ -48,7 +48,7 @@ static char AVG_RESULT_BUFFER[AVG_RESULT_BUFFER_SIZE];
 int execute_avg(database_t* database, int id,
                 const parameters_t* params, const char** response)
 {
-    if(params->gender && params->gender != 'm' && params->gender != 'f')
+    if(UNLIKELY(params->gender && params->gender != 'm' && params->gender != 'f'))
     {
         *response = "invalid gender";
         return PROCESS_RESULT_BAD_REQUEST;
@@ -73,7 +73,7 @@ int execute_avg(database_t* database, int id,
     CHECK_SQL(sqlite3_reset(exists_stmt));
     CHECK_SQL(sqlite3_bind_int(exists_stmt, 1, id));
     CHECK_SQL(sqlite3_step(exists_stmt));
-    if(!sqlite3_column_int(exists_stmt, 0))
+    if(UNLIKELY(!sqlite3_column_int(exists_stmt, 0)))
         return PROCESS_RESULT_NOT_FOUND;
 
     /* XXX room for optimization here: prepare statement beforehand. this could
@@ -158,7 +158,7 @@ int execute_visits(database_t* database, int id,
     CHECK_SQL(sqlite3_reset(exists_stmt));
     CHECK_SQL(sqlite3_bind_int(exists_stmt, 1, id));
     CHECK_SQL(sqlite3_step(exists_stmt));
-    if(!sqlite3_column_int(exists_stmt, 0))
+    if(UNLIKELY(!sqlite3_column_int(exists_stmt, 0)))
         return PROCESS_RESULT_NOT_FOUND;
 
     /* XXX room for optimization here: prepare statement beforehand. this could
@@ -196,15 +196,13 @@ int execute_method(database_t* database, int entity, int id, int method,
     switch(method)
     {
     case METHOD_AVG:
-        if(entity != 2)
-            // wut
+        if(UNLIKELY(entity != 2))
             return PROCESS_RESULT_NOT_FOUND;
         return execute_avg(database, id, params, response);
         break;
 
     case METHOD_VISITS:
-        if(entity != 0)
-            // wut
+        if(UNLIKELY(entity != 0))
             return PROCESS_RESULT_NOT_FOUND;
         return execute_visits(database, id, params, response);
         break;

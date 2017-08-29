@@ -100,14 +100,14 @@ SELECT EXISTS(SELECT 1 FROM locations WHERE id=?)
 static inline int bind_val(sqlite3_stmt* stmt, const entity_t* entity,
                            cJSON* json, int i)
 {
-    if(entity->column_types[i] == COLUMN_TYPE_NONE)
+    if(UNLIKELY(entity->column_types[i] == COLUMN_TYPE_NONE))
         return 0;
 
     int rc;
     const void* value;
 
     cJSON* arg = cJSON_GetObjectItemCaseSensitive(json, entity->column_names[i]);
-    if(!arg || cJSON_IsNull(arg))
+    if(UNLIKELY(!arg || cJSON_IsNull(arg)))
         return PROCESS_RESULT_BAD_REQUEST;
 
     if(entity->column_types[i] == COLUMN_TYPE_INT)
@@ -150,7 +150,7 @@ cleanup:
 
 int insert_entity(database_t* database, cJSON* json, int e)
 {
-    if(phase_hack)
+    if(LIKELY(phase_hack))
         set_phase(database, 2);
 
     int rc;
@@ -158,7 +158,7 @@ int insert_entity(database_t* database, cJSON* json, int e)
     sqlite3_stmt* insert_stmt = database->create_stmts[e];
     CHECK_SQL(sqlite3_reset(insert_stmt));
     cJSON* id = cJSON_GetObjectItemCaseSensitive(json, "id");
-    if(!id || !cJSON_IsNumber(id))
+    if(UNLIKELY(!id || !cJSON_IsNumber(id)))
         return PROCESS_RESULT_BAD_REQUEST;
 #ifndef NDEBUG
     if(dump)
@@ -466,10 +466,10 @@ void set_phase(database_t* database, int phase)
 {
     if(phase == 2)
     {
-        if(database->phase == 1)
+        if(UNLIKELY(database->phase == 1))
         {
             database->phase = 2;
-            if(sqlite3_exec(database->db, "BEGIN", NULL, NULL, NULL) != 0)
+            if(UNLIKELY(sqlite3_exec(database->db, "BEGIN", NULL, NULL, NULL) != 0))
             {
                 database->phase = 0;
                 fprintf(
@@ -484,10 +484,10 @@ void set_phase(database_t* database, int phase)
     }
     if(phase == 3)
     {
-        if(database->phase == 2)
+        if(UNLIKELY(database->phase == 2))
         {
             database->phase = 3;
-            if(sqlite3_exec(database->db, "COMMIT", NULL, NULL, NULL) != 0)
+            if(UNLIKELY(sqlite3_exec(database->db, "COMMIT", NULL, NULL, NULL) != 0))
             {
                 database->phase = 0;
                 fprintf(

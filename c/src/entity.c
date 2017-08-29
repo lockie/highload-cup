@@ -30,7 +30,7 @@ const entity_t ENTITIES[3] = {
 static inline const void* construct_arg(sqlite3_stmt* stmt,
                                         const entity_t* entity, int i)
 {
-    if(entity->column_types[i] == COLUMN_TYPE_NONE)
+    if(UNLIKELY(entity->column_types[i] == COLUMN_TYPE_NONE))
         return NULL;
     return entity->column_types[i] == COLUMN_TYPE_INT ?
         (const void*)(intptr_t)sqlite3_column_int(stmt, i+1) :
@@ -42,7 +42,7 @@ static char READ_ENTITY_BUFFER[READ_ENTITY_BUFFER_SIZE];
 
 static const char* read_entity(database_t* database, int e, int id)
 {
-    if(phase_hack)
+    if(LIKELY(phase_hack))
         set_phase(database, 3);
 
     int rc;
@@ -51,7 +51,7 @@ static const char* read_entity(database_t* database, int e, int id)
     CHECK_SQL(sqlite3_reset(stmt));
     CHECK_SQL(sqlite3_bind_int(stmt, 1, id));
     CHECK_SQL(sqlite3_step(stmt));
-    if(rc == SQLITE_DONE)
+    if(UNLIKELY(rc == SQLITE_DONE))
         return NULL;
     rc = 0;
     snprintf(READ_ENTITY_BUFFER, READ_ENTITY_BUFFER_SIZE,
@@ -64,7 +64,7 @@ static const char* read_entity(database_t* database, int e, int id)
                      construct_arg(stmt, entity, 4));
 
 cleanup:
-    if(rc != 0)
+    if(UNLIKELY(rc != 0))
         return NULL;
     return READ_ENTITY_BUFFER;
 }
@@ -72,7 +72,7 @@ cleanup:
 static inline int bind_val(sqlite3_stmt* stmt, sqlite3_stmt* read_stmt,
                            const entity_t* entity, cJSON* json, int i)
 {
-    if(entity->column_types[i] == COLUMN_TYPE_NONE)
+    if(UNLIKELY(entity->column_types[i] == COLUMN_TYPE_NONE))
         return 0;
 
     int rc;
@@ -87,7 +87,7 @@ static inline int bind_val(sqlite3_stmt* stmt, sqlite3_stmt* read_stmt,
     }
     else
     {
-        if(cJSON_IsNull(arg))
+        if(UNLIKELY(cJSON_IsNull(arg)))
             return PROCESS_RESULT_BAD_REQUEST;
         if(entity->column_types[i] == COLUMN_TYPE_INT)
             value = (void*)(intptr_t)arg->valueint;
@@ -113,7 +113,7 @@ static int update_entity(database_t* database, cJSON* json, int e, int id)
     int rc;
     const entity_t* entity = &ENTITIES[e];
 
-    if(phase_hack)
+    if(LIKELY(phase_hack))
         set_phase(database, 2);
 
     /* first, check the entity even exists by SELECTing it */
@@ -121,7 +121,7 @@ static int update_entity(database_t* database, cJSON* json, int e, int id)
     CHECK_SQL(sqlite3_reset(read_stmt));
     CHECK_SQL(sqlite3_bind_int(read_stmt, 1, id));
     rc = sqlite3_step(read_stmt);
-    if(rc != SQLITE_ROW)
+    if(UNLIKELY(rc != SQLITE_ROW))
     {
         // assuming entity does not exist
         return PROCESS_RESULT_NOT_FOUND;
@@ -139,7 +139,7 @@ static int update_entity(database_t* database, cJSON* json, int e, int id)
         CHECK_ZERO(bind_val(stmt, read_stmt, entity, json, i));
     }
     CHECK_SQL(sqlite3_step(stmt));
-    if(rc == SQLITE_DONE)
+    if(LIKELY(rc == SQLITE_DONE))
         rc = 0;
 
 cleanup:
@@ -151,7 +151,7 @@ static int create_entity(database_t* database, cJSON* json, int e)
     int rc;
 
     cJSON* json_id = cJSON_GetObjectItemCaseSensitive(json, "id");
-    if(!json_id || !cJSON_IsNumber(json_id))
+    if(UNLIKELY(!json_id || !cJSON_IsNumber(json_id)))
     {
         return PROCESS_RESULT_BAD_REQUEST;
     }
@@ -161,7 +161,7 @@ static int create_entity(database_t* database, cJSON* json, int e)
     CHECK_SQL(sqlite3_reset(exists_stmt));
     CHECK_SQL(sqlite3_bind_int(exists_stmt, 1, id));
     CHECK_SQL(sqlite3_step(exists_stmt));
-    if(sqlite3_column_int(exists_stmt, 0))
+    if(UNLIKELY(sqlite3_column_int(exists_stmt, 0)))
         return PROCESS_RESULT_BAD_REQUEST;
 
     CHECK_ZERO(insert_entity(database, json, e));
@@ -177,7 +177,7 @@ int process_entity(database_t* database,
     if(write)
     {
         cJSON* root = cJSON_Parse(body);
-        if(!root)
+        if(UNLIKELY(!root))
         {
             *response = "failed to parse JSON";
             return PROCESS_RESULT_BAD_REQUEST;
