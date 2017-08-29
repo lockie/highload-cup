@@ -76,6 +76,10 @@ static void setup_memory(size_t pool_size)
                   /* no swapping, pre-fault */
                   | MAP_NORESERVE | MAP_POPULATE,
                   -1, 0));
+    if(mlockall(MCL_CURRENT) != 0)
+    {
+        perror("mlockall");
+    }
     VERIFY_ZERO(madvise(pool, pool_size, MADV_DONTDUMP));
     /* XXX use hugepages to speed up page lookups */
     FILE* hugetlb = fopen("/sys/kernel/mm/transparent_hugepage/enabled", "r");
