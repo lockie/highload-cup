@@ -17,12 +17,20 @@ set(CMAKE_DEBUG_POSTFIX "_d")
 add_compile_options(-march=sandybridge -pipe)
 
 set(CMAKE_C_FLAGS_RELEASE
-  "${CMAKE_C_FLAGS_RELEASE} -fomit-frame-pointer -ffunction-sections -fdata-sections")
+  "${CMAKE_C_FLAGS_RELEASE} -fomit-frame-pointer -ffunction-sections -fdata-sections -flto -fno-fat-lto-objects")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO
-  "${CMAKE_C_FLAGS_RELWITHDEBINFO} -fomit-frame-pointer -ffunction-sections -fdata-sections")
+  "${CMAKE_C_FLAGS_RELWITHDEBINFO} -fomit-frame-pointer -ffunction-sections -fdata-sections -flto -fno-fat-lto-objects")
 set(CMAKE_C_FLAGS_MINSIZEREL
-  "${CMAKE_C_FLAGS_MINSIZEREL} -fomit-frame-pointer -ffunction-sections -fdata-sections")
+  "${CMAKE_C_FLAGS_MINSIZEREL} -fomit-frame-pointer -ffunction-sections -fdata-sections -flto -fno-fat-lto-objects")
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -flto")
+set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO} -flto")
+set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "${CMAKE_EXE_LINKER_FLAGS_MINSIZEREL} -flto")
 
+if(CMAKE_COMPILER_IS_GNUCC)
+  SET(CMAKE_AR  "gcc-ar")
+  SET(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> qcs <TARGET> <LINK_FLAGS> <OBJECTS>")
+  SET(CMAKE_C_ARCHIVE_FINISH   true)
+endif()
 
 # Libevent #####################################################################
 set(EVENT__DISABLE_THREAD_SUPPORT OFF CACHE BOOL "")

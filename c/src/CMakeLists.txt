@@ -16,15 +16,15 @@ set(SRCS
 
 add_gengetopt_files(SRCS cmdline.ggo)
 
-# add assembler listing
-if(CMAKE_COMPILER_IS_GNUCC)
-  foreach(FILE ${SRCS})
-    get_filename_component(NAME ${FILE} NAME_WE)
-    set_source_files_properties (${FILE}
-      PROPERTIES
-      COMPILE_FLAGS "-fverbose-asm -masm=intel -Wa,-adhln=${NAME}.s")
-  endforeach(FILE in ${SRCS})
-endif()
+# add assembler listing. XXX not working with LTO
+#if(CMAKE_COMPILER_IS_GNUCC)
+#  foreach(FILE ${SRCS})
+#    get_filename_component(NAME ${FILE} NAME_WE)
+#    set_source_files_properties (${FILE}
+#      PROPERTIES
+#      COMPILE_FLAGS "-fverbose-asm -masm=intel -Wa,-adhln=${NAME}.s")
+#  endforeach(FILE in ${SRCS})
+#endif()
 
 include_directories(
   ${LIBEVENT_INCLUDE_DIRS}
