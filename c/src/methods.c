@@ -9,28 +9,22 @@
 
 const char* METHODS[2] = {"avg", "visits"};
 
-static const char* AVG = R"(
-SELECT avg(visits.mark) FROM visits WHERE visits.location=%d
-)";
+static const char* AVG = "SELECT avg(visits.mark) FROM visits WHERE visits.location=%d";
 
 static const char* FROM_DATE = " AND visits.visited_at>%d";
 
 static const char* TO_DATE = " AND visits.visited_at<%d";
 
-static const char* AVG_USER = R"(
-SELECT avg(visits.mark) FROM visits JOIN users ON visits.user=users.id
-WHERE visits.location=%d
-)";
+static const char* AVG_USER = "SELECT avg(visits.mark) FROM visits JOIN users "
+    "ON visits.user=users.id WHERE visits.location=%d";
 
 static const char* AVG_USER_GENDER = " AND users.gender=\"%c\"";
 
-static const char* AVG_USER_FROM_AGE = R"(
-AND date(users.birth_date, 'unixepoch')<date('%d', 'unixepoch', '-%d years')
-)";
+static const char* AVG_USER_FROM_AGE = " AND date(users.birth_date,'unixepoch')"
+    "<date('%d','unixepoch','-%d years')";
 
-static const char* AVG_USER_TO_AGE = R"(
-AND date(users.birth_date, 'unixepoch')>date('%d', 'unixepoch', '-%d years')
-)";
+static const char* AVG_USER_TO_AGE = " AND date(users.birth_date,'unixepoch')>"
+    "date('%d','unixepoch','-%d years')";
 
 int avg_callback(void* arg, int argc, char **argv, char **col)
 {
@@ -112,11 +106,9 @@ cleanup:
     return rc;
 }
 
-static const char* VISITS = R"(
-SELECT visits.mark,visits.visited_at,locations.place FROM visits JOIN locations
-ON visits.location=locations.id WHERE visits.user=%d
-)";
-
+static const char* VISITS = "SELECT visits.mark,visits.visited_at,"
+    "locations.place FROM visits JOIN locations ON visits.location=locations.id"
+    " WHERE visits.user=%d";
 
 static const char* VISITS_TO_DISTANCE = " AND locations.distance<%d";
 

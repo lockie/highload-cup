@@ -39,62 +39,38 @@ CREATE INDEX visits_location ON visits (location);
 CREATE INDEX visits_user ON visits(user);
 )";
 
-static const char* INSERT_USER = R"(
-INSERT INTO users (id, email, first_name, last_name, gender, birth_date)
-VALUES (?, ?, ?, ?, ?, ?)
-)";
+static const char* INSERT_USER = "INSERT INTO users(id,email,first_name,"
+    "last_name,gender,birth_date)VALUES(?,?,?,?,?,?)";
 
-static const char* INSERT_VISIT = R"(
-INSERT INTO visits (id, location, user, visited_at, mark)
-VALUES (?, ?, ?, ?, ?)
-)";
+static const char* INSERT_VISIT = "INSERT INTO visits(id,location,user,"
+    "visited_at,mark)VALUES(?,?,?,?,?)";
 
-static const char* INSERT_LOCATION = R"(
-INSERT INTO locations (id, place, country, city, distance)
-VALUES (?, ?, ?, ?, ?)
-)";
+static const char* INSERT_LOCATION = "INSERT INTO locations(id,place,country,"
+    "city,distance)VALUES(?,?,?,?,?)";
 
-static const char* SELECT_USER = R"(
-SELECT id, email, first_name, last_name, gender, birth_date
-FROM users WHERE id = ?
-)";
+static const char* SELECT_USER = "SELECT id,email,first_name,last_name,gender,"
+    "birth_date FROM users WHERE id=?";
 
-static const char* SELECT_VISIT = R"(
-SELECT id, location, user, visited_at, mark
-FROM visits WHERE id = ?
-)";
+static const char* SELECT_VISIT = "SELECT id,location,user,visited_at,mark FROM"
+    " visits WHERE id=?";
 
-static const char* SELECT_LOCATION = R"(
-SELECT id, place, country, city, distance
-FROM locations WHERE id = ?
-)";
+static const char* SELECT_LOCATION = "SELECT id,place,country,city,distance"
+    " FROM locations WHERE id=?";
 
-static const char* UPDATE_USER = R"(
-UPDATE users SET email=?2, first_name=?3, last_name=?4, gender=?5, birth_date=?6
-WHERE id = ?1
-)";
+static const char* UPDATE_USER = "UPDATE users SET email=?2,first_name=?3,"
+    "last_name=?4,gender=?5,birth_date=?6 WHERE id=?1";
 
-static const char* UPDATE_VISIT = R"(
-UPDATE visits SET location=?2, user=?3, visited_at=?4, mark=?5
-WHERE id = ?1
-)";
+static const char* UPDATE_VISIT = "UPDATE visits SET location=?2,user=?3,"
+    "visited_at=?4,mark=?5 WHERE id = ?1";
 
-static const char* UPDATE_LOCATION = R"(
-UPDATE locations SET place=?2, country=?3, city=?4, distance=?5
-WHERE id = ?1
-)";
+static const char* UPDATE_LOCATION = "UPDATE locations SET place=?2,country=?3,"
+    "city=?4,distance=?5 WHERE id=?1";
 
-static const char* EXISTS_USER = R"(
-SELECT EXISTS(SELECT 1 FROM users WHERE id=?)
-)";
+static const char* EXISTS_USER = "SELECT EXISTS(SELECT 1 FROM users WHERE id=?)";
 
-static const char* EXISTS_VISIT = R"(
-SELECT EXISTS(SELECT 1 FROM visits WHERE id=?)
-)";
+static const char* EXISTS_VISIT = "SELECT EXISTS(SELECT 1 FROM visits WHERE id=?)";
 
-static const char* EXISTS_LOCATION = R"(
-SELECT EXISTS(SELECT 1 FROM locations WHERE id=?)
-)";
+static const char* EXISTS_LOCATION = "SELECT EXISTS(SELECT 1 FROM locations WHERE id=?)";
 
 
 static inline int bind_val(sqlite3_stmt* stmt, const entity_t* entity,
