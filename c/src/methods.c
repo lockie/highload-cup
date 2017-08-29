@@ -93,7 +93,7 @@ int execute_avg(database_t* database, int id,
         strcpy(response, "{\"avg\": 0.0}");
     else
         snprintf(response, RESPONSE_BUFFER_SIZE,
-                 "{\"avg\":%.5f}", average);
+                 "{\"avg\":%.5f}", average + 1e-10);
 
 cleanup:
     return rc;
