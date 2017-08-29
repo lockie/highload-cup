@@ -16,7 +16,7 @@ ExternalProject_Add(sqlite3c
   URL_HASH SHA1=${SQLITE3_SHA1}
   BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}
   PREFIX ${CMAKE_CURRENT_BINARY_DIR}
-  CONFIGURE_COMMAND ${CMAKE_CURRENT_BINARY_DIR}/src/sqlite3c/configure -q --disable-tcl --disable-shared --disable-threadsafe --enable-memsys5
+  CONFIGURE_COMMAND ${CMAKE_CURRENT_BINARY_DIR}/src/sqlite3c/configure -q --disable-tcl --disable-shared --enable-memsys5
   STEP_TARGETS configure amalgamation
   EXCLUDE_FROM_ALL TRUE
   DOWNLOAD_NO_PROGRESS ON
@@ -34,7 +34,7 @@ add_dependencies(SQLite sqlite3c-amalgamation)
 
 target_compile_definitions(SQLite PRIVATE
   _HAVE_SQLITE_CONFIG_H
-  SQLITE_THREADSAFE=0
+  SQLITE_THREADSAFE=1
   SQLITE_DEFAULT_MEMSTATUS=0
   SQLITE_MAX_EXPR_DEPTH=0
   SQLITE_OMIT_DECLTYPE

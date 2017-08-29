@@ -2,6 +2,8 @@ project(server LANGUAGES C)
 
 include(${CMAKE_SOURCE_DIR}/cmake/Gengetopt.cmake)
 
+find_package(Threads)
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall -Wextra -pedantic")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
 
@@ -23,7 +25,7 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
       get_filename_component(NAME ${FILE} NAME_WE)
       set_source_files_properties (${FILE}
         PROPERTIES
-        COMPILE_FLAGS "-fverbose-asm -masm=intel -Wa,-adhln=${NAME}.s")
+        COMPILE_FLAGS "-fverbose-asm -Wa,-adhln=${NAME}.s")
     endforeach(FILE in ${SRCS})
   endif()
 endif()
@@ -39,4 +41,5 @@ include_directories(
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 add_executable(server ${SRCS})
-target_link_libraries(server event_static cjson SQLite miniz dl)
+target_link_libraries(server
+  event_static event_pthreads_static cjson SQLite miniz dl ${CMAKE_THREAD_LIBS_INIT})

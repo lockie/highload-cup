@@ -31,7 +31,6 @@ if(CMAKE_COMPILER_IS_GNUCC)
 endif()
 
 # Libevent #####################################################################
-set(EVENT__DISABLE_THREAD_SUPPORT OFF CACHE BOOL "")
 set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "")
 set(EVENT__DISABLE_BENCHMARK ON CACHE BOOL "")
 set(EVENT__DISABLE_TESTS ON CACHE BOOL "")
@@ -45,7 +44,7 @@ set_target_properties(
   PROPERTIES EXCLUDE_FROM_ALL ON EXCLUDE_FROM_DEFAULT_BUILD ON)
 # use generic event_shared, no need in those separate ones
 set_target_properties(
-  event_core_static event_extra_static event_pthreads_static
+  event_core_static event_extra_static
   PROPERTIES EXCLUDE_FROM_ALL ON EXCLUDE_FROM_DEFAULT_BUILD ON)
 
 # cJSON ########################################################################

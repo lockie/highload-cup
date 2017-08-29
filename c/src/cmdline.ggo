@@ -28,3 +28,8 @@ option "memory" m
   "Size of memory pool to reserve, in powers of two, e.g. 2**31 = 2147483648 = 2Gb"
   int default="31"
   optional
+
+option "threads" t
+  "Number of threads to launch"
+  int default="4"
+  optional
