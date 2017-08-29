@@ -17,6 +17,8 @@
 #define VERIFY_NOT(x, err) if(x == err){perror(#x); exit(EXIT_FAILURE);}
 #define VERIFY_ZERO(x) {int rc = (x); if(rc!=0){perror(#x); exit(rc);}}
 #define VERIFY_NONZERO(x) {if(!(x)){perror(#x); exit(EXIT_FAILURE);}}
+#define VERIFY_POSITIVE(x) {intptr_t rc=(intptr_t)(x);\
+        if(rc<0){perror(#x);exit(EXIT_FAILURE);}}
 
 #define CHECK_POSITIVE(x) {int rc = (x); if(rc<0) {             \
             if(!(IS_SET(NDEBUG)))                               \

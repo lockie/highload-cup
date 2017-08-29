@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
+#include <string.h>
 #include <signal.h>
+#include <sys/mman.h>
 #include <netinet/tcp.h>
 
 #include <event2/event.h>
@@ -29,6 +32,92 @@ static void setup_signals()
     VERIFY_NOT(signal(SIGINT, terminate_handler), SIG_ERR);
 }
 
+// based on https://stackoverflow.com/a/3898986/1336774
+const char* print_size(uint64_t size)
+{
+    uint64_t  multiplier = 1024ULL * 1024ULL * 1024ULL;
+    static const char* sizes[] = {"GiB", "MiB", "KiB", "B"};
+    static char result[32] = {0};
+    for(unsigned i = 0; i < sizeof(sizes)/sizeof(sizes[0]);
+        i++, multiplier /= 1024)
+    {
+        if(size < multiplier)
+            continue;
+        if(size % multiplier == 0)
+            snprintf(result, 32, "%" PRIu64 " %s", size / multiplier, sizes[i]);
+        else
+            snprintf(result, 32, "%.1f %s", (float) size / multiplier, sizes[i]);
+        return result;
+    }
+    return result;
+}
+
+typedef void* malloc_t(size_t);
+
+// XXX really weird bug in SQLite memsys5: calling realloc(0, sz) causes SIGSEGV
+void* memsys5_realloc(void* ptr, size_t sz)
+{
+    if(ptr)
+        return sqlite3_realloc(ptr, sz);
+    return sqlite3_malloc(sz);
+}
+
+static void setup_memory(size_t pool_size)
+{
+    void* pool;
+    VERIFY_POSITIVE(pool = mmap(NULL, pool_size,
+                  PROT_READ | PROT_WRITE,
+                  /* private CoW memory */
+                  MAP_PRIVATE | MAP_ANONYMOUS
+                  /* no swapping, pre-fault */
+                  | MAP_NORESERVE | MAP_POPULATE,
+                  -1, 0));
+    VERIFY_ZERO(madvise(pool, pool_size, MADV_DONTDUMP));
+    /* XXX use hugepages to speed up page lookups */
+    FILE* hugetlb = fopen("/sys/kernel/mm/transparent_hugepage/enabled", "r");
+    if(!hugetlb)
+    {
+        if(verbose)
+            printf("Hugepages not supported by OS!\n");
+    }
+    else
+    {
+        char status[32] = {0};
+        size_t read = fread(status, 1, 32, hugetlb);
+        if(strncmp(status, "[never]", read) == 0)
+        {
+            if(verbose)
+                printf("Hugepages support turned off!\n");
+        }
+        else
+        {
+            VERIFY_ZERO(madvise(pool, pool_size, MADV_HUGEPAGE));
+            if(verbose)
+                printf("Hugepages support enabled\n");
+        }
+        fclose(hugetlb);
+    }
+
+    sqlite3_config(SQLITE_CONFIG_HEAP, pool, pool_size, 256);
+
+    if(verbose)
+        printf("Reserved %s for memory pool\n", print_size(pool_size));
+
+    VERIFY_ZERO(sqlite3_config(SQLITE_CONFIG_LOOKASIDE, 0, 0));
+
+    sqlite3_mem_methods sqlite_mm;
+    sqlite3_config(SQLITE_CONFIG_GETMALLOC, &sqlite_mm);
+    /* damn SQLite with damn int's */
+    malloc_t* sqlite_malloc_fn = (malloc_t*)sqlite_mm.xMalloc;
+
+    cJSON_Hooks cjson_mm;
+    cjson_mm.malloc_fn = sqlite_malloc_fn;
+    cjson_mm.free_fn = sqlite_mm.xFree;
+    cJSON_InitHooks(&cjson_mm);
+
+    event_set_mem_functions(sqlite_malloc_fn, memsys5_realloc, sqlite_mm.xFree);
+}
+
 int main(int argc, char** argv)
 {
     // Docker <_<
@@ -54,7 +143,7 @@ int main(int argc, char** argv)
 
     setup_signals();
 
-    cJSON_InitHooks(NULL);
+    setup_memory(1L << args.memory_arg);
 
     database_t database;
     MEASURE_DURATION(VERIFY_ZERO(bootstrap(&database, args.data_arg)),
