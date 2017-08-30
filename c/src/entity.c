@@ -13,7 +13,7 @@
 #define membersize(type, member) sizeof(((type *)0)->member)
 
 const entity_t ENTITIES[3] = {
-    {"users", {COLUMN_TYPE_STR, COLUMN_TYPE_STR, COLUMN_TYPE_STR,
+    {"users", 5, {COLUMN_TYPE_STR, COLUMN_TYPE_STR, COLUMN_TYPE_STR,
                COLUMN_TYPE_STR, COLUMN_TYPE_INT},
      {"email", "first_name", "last_name", "gender", "birth_date"},
      {offsetof(user_t, email), offsetof(user_t, first_name),
@@ -26,7 +26,7 @@ const entity_t ENTITIES[3] = {
      "\"gender\":\"%s\",\"birth_date\":%d}",
      sizeof(user_t)
     },
-    {"visits", {COLUMN_TYPE_INT, COLUMN_TYPE_INT, COLUMN_TYPE_INT,
+    {"visits", 6, {COLUMN_TYPE_INT, COLUMN_TYPE_INT, COLUMN_TYPE_INT,
                 COLUMN_TYPE_INT, COLUMN_TYPE_NONE},
      {"location", "user", "visited_at", "mark", NULL},
      {offsetof(visit_t, location), offsetof(visit_t, user),
@@ -36,7 +36,7 @@ const entity_t ENTITIES[3] = {
      "{\"id\":%d,\"location\":%d,\"user\":%d,\"visited_at\":%d,\"mark\":%d}",
      sizeof(visit_t)
     },
-    {"locations", {COLUMN_TYPE_STR, COLUMN_TYPE_STR, COLUMN_TYPE_STR,
+    {"locations", 9, {COLUMN_TYPE_STR, COLUMN_TYPE_STR, COLUMN_TYPE_STR,
                    COLUMN_TYPE_INT, COLUMN_TYPE_NONE},
      {"place", "country", "city", "distance", NULL},
      {offsetof(location_t, place), offsetof(location_t, country),

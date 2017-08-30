@@ -21,7 +21,8 @@ typedef struct
 #define METHOD_AVG  0
 #define METHOD_VISITS 1
 
-extern const char* METHODS[2];
+extern const char* const METHODS[2];
+extern const size_t METHODS_SIZE[2];
 
 int execute_method(database_t* database, int entity, int id, int method,
                    const parameters_t* params, char* response);

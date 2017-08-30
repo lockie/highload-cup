@@ -16,6 +16,7 @@
 typedef struct
 {
     const char* name;
+    size_t name_size;
     int column_types[5];
     const char* column_names[5];
     int column_offsets[5];

@@ -8,7 +8,8 @@
 #include "methods.h"
 
 
-const char* METHODS[2] = {"avg", "visits"};
+const char* const METHODS[2] = {"avg", "visits"};
+const size_t METHODS_SIZE[2] = {3, 6};
 
 static inline int datediff(const database_t* database, int years)
 {

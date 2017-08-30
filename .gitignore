@@ -97,3 +97,6 @@ data/
 core
 urls.txt
 *.sql
+tags
+*.prof
+*.callgrind

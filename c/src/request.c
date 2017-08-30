@@ -20,15 +20,14 @@ static int convert_int(const char* value, int* error)
 {
     if(!value)
         return INT_MAX;
-    size_t len = strlen(value);
-    if(UNLIKELY(len == 0))
+    if(!value[0])
     {
         *error = 1;
         return INT_MAX;
     }
-    for(size_t i = 0; i < len; i++)
+    for(const char* c = value; *c; c++)
     {
-        if(UNLIKELY(!isdigit(value[i])))
+        if(UNLIKELY(!isdigit(*c)))
         {
             *error = 1;
             return INT_MAX;
@@ -39,36 +38,18 @@ static int convert_int(const char* value, int* error)
 
 void request_handler(struct evhttp_request* req, void* arg)
 {
-    struct evbuffer* in_buf, *out_buf;
+    int res;
     const char* URI = evhttp_request_get_uri(req);
-    struct evkeyvalq query;
-    int entity = -1;
-    const char* method_str;
-    char* identifier;
-    char* body = NULL;
-    int write = 0, res, id, method = METHOD_DEFAULT;
-    size_t i, n;
-
-#ifndef NDEBUG
-    /* XXX debug URL to peep into database */
-    if(strncmp(URI, "/SQL", 4) == 0)
-    {
-        int rc = process_SQL(req, arg);
-        if(rc != 0)
-        {
-            handle_bad_request(req, sqlite3_errstr(rc));
-        }
-        return;
-    }
-#endif // ifndef NDEBUG
+    size_t i;
 
     /* figure entity from URL */
+    int entity = -1;
     for(i = 0; i < sizeof(ENTITIES) / sizeof(ENTITIES[0]); i++)
     {
-        if(strncmp(&URI[1], ENTITIES[i].name, strlen(ENTITIES[i].name)) == 0)
+        if(strncmp(&URI[1], ENTITIES[i].name, ENTITIES[i].name_size) == 0)
         {
             entity = i;
-            if(UNLIKELY(URI[strlen(ENTITIES[i].name)+1] != 47)) /* / */
+            if(UNLIKELY(URI[ENTITIES[i].name_size+1] != 47)) /* / */
                 entity = -1;
             break;
         }
@@ -80,23 +61,14 @@ void request_handler(struct evhttp_request* req, void* arg)
     }
 
     /* figure operation */
-    switch (evhttp_request_get_command(req))
-    {
-    case EVHTTP_REQ_GET:
-        write = 0;
-        break;
-    case EVHTTP_REQ_POST:
-        write = 1;
-        break;
-    default:
-        goto cleanup;
-        break;
-    }
+    int write = (evhttp_request_get_command(req) == EVHTTP_REQ_POST);
 
     /* figure id */
-    n = strlen(ENTITIES[i].name) + 2;
-    identifier = alloca(strlen(URI) - n + 1);
-    strncpy(identifier, &URI[n], strlen(URI) - n + 1);
+    int id;
+    size_t n = ENTITIES[i].name_size + 2;
+    size_t nURI = strlen(&URI[n]);
+    char* identifier = alloca(nURI + 1);
+    strncpy(identifier, &URI[n], nURI + 1);
     if(UNLIKELY(write && strncmp(identifier, "new", 3) == 0))
     {
         n += 3;
@@ -128,15 +100,16 @@ void request_handler(struct evhttp_request* req, void* arg)
     }
 
     /* figure out remainder */
+    int method = METHOD_DEFAULT;
     if(URI[n] == '/')
     {
-        method_str = &URI[++n];
+        const char* method_str = &URI[++n];
         for(i = 0; i < sizeof(METHODS) / sizeof(METHODS[0]); i++)
         {
-            if(strncmp(method_str, METHODS[i], strlen(METHODS[i])) == 0)
+            if(strncmp(method_str, METHODS[i], METHODS_SIZE[i]) == 0)
             {
                 method = i;
-                n += strlen(METHODS[i]);
+                n += METHODS_SIZE[i];
                 if(UNLIKELY(URI[n] && URI[n] != '?'))
                 {
                     handle_bad_request(req, "invalid query string");
@@ -153,10 +126,11 @@ void request_handler(struct evhttp_request* req, void* arg)
     {
         if(method != METHOD_DEFAULT)
         {
+            struct evkeyvalq query;
             CHECK_POSITIVE(evhttp_parse_query_str(&URI[n+1], &query));
 
             const char* gender = evhttp_find_header(&query, "gender");
-            if(gender && strlen(gender) != 1)
+            if(gender && gender[1] != 0)
             {
                 evhttp_clear_headers(&query);
                 handle_bad_request(req, "invalid gender parameter value");
@@ -213,9 +187,10 @@ error:
     }
 
     /* get POST body, if any */
+    char* body = NULL;
     if(UNLIKELY(write))
     {
-        in_buf = evhttp_request_get_input_buffer(req);
+        struct evbuffer* in_buf = evhttp_request_get_input_buffer(req);
         size_t length = evbuffer_get_length(in_buf);
         body = alloca(length);
         CHECK_POSITIVE(evbuffer_remove(in_buf, body, length));
@@ -224,22 +199,21 @@ error:
     /* do processing */
     char response[RESPONSE_BUFFER_SIZE];
     if(method == METHOD_DEFAULT)
-    {
         res = process_entity(arg, entity, id, write, body, response);
-    }
     else
-    {
         res = execute_method(arg, entity, id, method, &params, response);
-    }
 
     switch(res)
     {
     case PROCESS_RESULT_OK:
+    {
+        struct evbuffer* out_buf;
         CHECK_NONZERO(out_buf = evbuffer_new());
         evbuffer_add(out_buf, response, strlen(response));
         evhttp_send_reply(req, HTTP_OK, "OK", out_buf);
         evbuffer_free(out_buf);
         break;
+    }
 
     case PROCESS_RESULT_BAD_REQUEST:
         handle_bad_request(req, response);
