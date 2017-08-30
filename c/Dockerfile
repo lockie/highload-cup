@@ -2,8 +2,8 @@ FROM alpine:3.6
 
 ENV LANG en_US.utf8
 
-RUN apk add --no-cache --virtual .builddeps gcc tcl make cmake musl-dev glib-dev file gengetopt &&\
-    apk add glib
+RUN apk add --no-cache --virtual .builddeps gcc tcl make cmake musl-dev glib-dev jemalloc-dev file gengetopt &&\
+    apk add glib jemalloc
 
 EXPOSE 80
 

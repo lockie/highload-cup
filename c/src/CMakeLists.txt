@@ -1,11 +1,15 @@
 project(server LANGUAGES C)
 
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH}")
+
 include(${CMAKE_SOURCE_DIR}/cmake/Gengetopt.cmake)
 
 find_package(Threads REQUIRED)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
+
+find_package(JeMalloc REQUIRED)
 
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall -Wextra -pedantic")
@@ -35,6 +39,7 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 include_directories(
+  ${JEMALLOC_INCLUDE_DIR}
   ${GLIB_INCLUDE_DIRS}
   ${LIBEVENT_INCLUDE_DIRS}
   "${CMAKE_SOURCE_DIR}/vendor/cJSON"
@@ -48,4 +53,5 @@ add_executable(server ${SRCS})
 target_link_libraries(server
   event_static event_pthreads_static cjson miniz dl
   ${CMAKE_THREAD_LIBS_INIT}
-  ${GLIB_LIBRARIES})
+  ${GLIB_LIBRARIES}
+  ${JEMALLOC_LIBRARIES})

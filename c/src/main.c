@@ -9,6 +9,8 @@
 
 #include <pthread.h>
 
+#include <jemalloc/jemalloc.h>
+
 #include <event2/event.h>
 #include <event2/thread.h>
 
@@ -25,14 +27,21 @@ int phase_hack;
 
 static void terminate_handler(int signum)
 {
-    fprintf(stderr, "Caught signal %d, terminating\n", signum);
+    fprintf(stderr, "\nCaught signal %d, terminating\n", signum);
     exit(signum);
+}
+
+static void hangup_handler(int signum)
+{
+    (void)signum;
+    malloc_stats_print(NULL, NULL, NULL);
 }
 
 static void setup_signals()
 {
     VERIFY_NOT(signal(SIGPIPE, SIG_IGN), SIG_ERR);
     VERIFY_NOT(signal(SIGINT, terminate_handler), SIG_ERR);
+    VERIFY_NOT(signal(SIGHUP, hangup_handler), SIG_ERR);
 }
 
 // based on https://stackoverflow.com/a/3898986/1336774
@@ -72,10 +81,11 @@ static int setup_socket(int portnum)
     int yes = 1;
     VERIFY_ZERO(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
                            &yes, sizeof(int)));
+    VERIFY_ZERO(setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
+                           &yes, sizeof(int)));
     VERIFY_ZERO(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
                            &yes, sizeof(int)));
-    VERIFY_ZERO(setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
-                           &yes, sizeof(int))<0)
+
 
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
