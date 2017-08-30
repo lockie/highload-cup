@@ -42,7 +42,6 @@
         (end.tv_sec-start.tv_sec)*1000.+(end.tv_nsec-start.tv_nsec)/1e6; \
     if(LIKELY(verbose)) printf("%s took %.2f ms\n", s, ms); }
 
-extern int phase_hack;
 extern int verbose;
 
 #endif  // _UTILS_H_

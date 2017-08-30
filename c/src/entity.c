@@ -61,9 +61,6 @@ static inline const void* construct_arg(void* ptr, const entity_t* entity, int i
 
 static int read_entity(database_t* database, int e, int id, char* response)
 {
-    if(LIKELY(phase_hack))
-        set_phase(database, 3);
-
     const entity_t* entity = &ENTITIES[e];
     GPtrArray* arr = database->entities[e];
 
@@ -85,9 +82,6 @@ static int read_entity(database_t* database, int e, int id, char* response)
 
 static int update_entity(database_t* database, cJSON* json, int e, int id)
 {
-    if(LIKELY(phase_hack))
-        set_phase(database, 2);
-
     const entity_t* entity = &ENTITIES[e];
     GPtrArray* arr = database->entities[e];
 

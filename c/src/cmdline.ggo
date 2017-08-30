@@ -16,10 +16,6 @@ option "data" d
   "Location of data.zip file"
   string default="/tmp/data/data.zip"
 
-option "phase-hack" -
-  "Hackishly try to determine current testing phase and act accordingly"
-  flag off
-
 option "threads" t
   "Number of threads to launch"
   int default="4"

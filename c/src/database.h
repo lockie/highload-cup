@@ -47,11 +47,9 @@ typedef struct
 
     int timestamp;  // current timestamp from options.txt
     struct tm* timestamp_tm;  // same, in struct tm format
-    int phase;  // HACK : trying to determine current testing phase :E
 } database_t;
 
 int bootstrap(database_t*, const char*);
-int process_SQL(struct evhttp_request*, void*);  // XXX debug
 int insert_entity(database_t*, cJSON*, int);
 void set_phase(database_t* database, int phase);
 

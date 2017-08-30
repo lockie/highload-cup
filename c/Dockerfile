@@ -14,4 +14,4 @@ RUN mkdir /usr/src/app/build && cd /usr/src/app/build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release && make -j5 && cp server /usr/local/bin/server && \
     cd .. && rm -fr build && apk del .builddeps && du -h /usr/local/bin/server
 
-CMD /usr/local/bin/server -v -p 80 -d /tmp/data/data.zip -t5
+CMD /usr/local/bin/server -v -p 80 -d /tmp/data/data.zip

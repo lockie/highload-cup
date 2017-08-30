@@ -70,9 +70,6 @@ void update_visits_location_index(database_t* database, visit_t* visit, int add)
 
 int insert_entity(database_t* database, cJSON* json, int e)
 {
-    if(LIKELY(phase_hack))
-        set_phase(database, 2);
-
     const entity_t* entity = &ENTITIES[e];
 
     cJSON* id_json = cJSON_GetObjectItemCaseSensitive(json, "id");
@@ -139,7 +136,6 @@ int bootstrap(database_t* database, const char* filename)
     int rc = 0;
 
     database->timestamp = time(NULL);
-    database->phase = 0;
 
     database->entities[0] = g_ptr_array_sized_new(16384);
     g_ptr_array_set_size(database->entities[0], 16384);
@@ -213,32 +209,8 @@ cleanup:
     mz_zip_reader_end(&archive);
     if(rc == 0)
     {
-        if(phase_hack)
-            database->phase = 1;
         database->timestamp_tm = gmtime((time_t*)&database->timestamp);
         database->timestamp_tm->tm_isdst = 0;
     }
     return rc;
-}
-
-void set_phase(database_t* database, int phase)
-{
-    if(phase == 2)
-    {
-        if(UNLIKELY(database->phase == 1))
-        {
-            database->phase = 2;
-            // XXX currently no-op
-            printf("Detected phase 2 start\n");
-        }
-    }
-    if(phase == 3)
-    {
-        if(UNLIKELY(database->phase == 2))
-        {
-            database->phase = 3;
-            // XXX currently no-op
-            printf("Detected phase 3 start\n");
-        }
-    }
 }

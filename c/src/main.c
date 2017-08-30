@@ -27,7 +27,6 @@
 
 
 int verbose;
-int phase_hack;
 
 static void terminate_handler(int signum)
 {
@@ -118,7 +117,7 @@ static int setup_socket(int portnum)
     addr.sin_port = htons(portnum);
 
     VERIFY_POSITIVE(bind(fd, (struct sockaddr*)&addr, sizeof(addr)));
-    VERIFY_POSITIVE(listen(fd, 2048));
+    VERIFY_POSITIVE(listen(fd, 1024));
 
     int flags;
     if ((flags = fcntl(fd, F_GETFL, 0)) < 0
@@ -186,13 +185,7 @@ int main(int argc, char** argv)
     if(cmdline_parser(argc, argv, &args) != 0)
         return EXIT_FAILURE;
 
-    phase_hack = args.phase_hack_flag;
     verbose = args.verbose_flag;
-    if(args.threads_arg != 1 && args.phase_hack_flag)
-    {
-        fprintf(stderr, "Can't do phase hack in multithreaded mode!\n");
-        return EXIT_FAILURE;
-    }
 
     setup_signals();
 
