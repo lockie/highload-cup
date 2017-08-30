@@ -10,166 +10,138 @@
 
 const char* METHODS[2] = {"avg", "visits"};
 
-static const char* AVG = "SELECT avg(visits.mark) FROM visits WHERE visits.location=%d";
-
-static const char* FROM_DATE = " AND visits.visited_at>%d";
-
-static const char* TO_DATE = " AND visits.visited_at<%d";
-
-static const char* AVG_USER = "SELECT avg(visits.mark) FROM visits JOIN users "
-    "ON visits.user=users.id WHERE visits.location=%d";
-
-static const char* AVG_USER_GENDER = " AND users.gender=\"%c\"";
-
-static const char* AVG_USER_FROM_AGE = " AND date(users.birth_date,'unixepoch')"
-    "<date('%d','unixepoch','-%d years')";
-
-static const char* AVG_USER_TO_AGE = " AND date(users.birth_date,'unixepoch')>"
-    "date('%d','unixepoch','-%d years')";
-
-int avg_callback(void* arg, int argc, char **argv, char **col)
+static inline int datediff(const database_t* database, int years)
 {
-    (void)argc;
-    (void)col;
-    double* avg = (double*)arg;
-    if(LIKELY(argv[0]))
-        *avg = atof(argv[0]);
-    return 0;
+    struct tm timestruct;
+    memcpy(&timestruct, database->timestamp_tm, sizeof(struct tm));
+    timestruct.tm_year -= years;
+    return mktime(&timestruct);
 }
 
 int execute_avg(database_t* database, int id,
                 const parameters_t* params, char* response)
 {
-    if(UNLIKELY(params->gender && params->gender != 'm' && params->gender != 'f'))
+    if(UNLIKELY(params->gender &&
+                params->gender != 'm' && params->gender != 'f'))
     {
         strcpy(response, "invalid gender");
         return PROCESS_RESULT_BAD_REQUEST;
     }
 
-    int with_user = 0;
-    if(params->fromAge != INT_MAX || params->toAge != INT_MAX ||
-       params->gender != 0)
-        with_user = 1;
-
-    int rc;
-
-    const size_t sql_len = strlen(AVG_USER) + strlen(FROM_DATE) +
-        strlen(TO_DATE) + strlen(AVG_USER_GENDER) +
-        strlen(AVG_USER_FROM_AGE) + strlen(AVG_USER_TO_AGE) + 54;
-    int len;
-    char sql[sql_len];
-    memset(sql, 0, sql_len);
-
     /* first, check the location exists */
-    sqlite3_stmt* exists_stmt = database->exists_stmts[2];
-    CHECK_SQL(sqlite3_reset(exists_stmt));
-    CHECK_SQL(sqlite3_bind_int(exists_stmt, 1, id));
-    CHECK_SQL(sqlite3_step(exists_stmt));
-    if(UNLIKELY(!sqlite3_column_int(exists_stmt, 0)))
+    GPtrArray* arr = database->entities[2];
+    if(UNLIKELY((guint)id >= arr->len))
+        return PROCESS_RESULT_NOT_FOUND;
+    void* ptr = g_ptr_array_index(arr, id);
+    if(UNLIKELY(ptr == NULL))
         return PROCESS_RESULT_NOT_FOUND;
 
-    /* XXX room for optimization here: prepare statement beforehand. this could
-       save couple of cents. */
-    len = snprintf(sql, sql_len, with_user ? AVG_USER : AVG, id);
-    if(params->fromDate != INT_MAX)
-        len += snprintf(&sql[len], sql_len-len,
-                        FROM_DATE, params->fromDate);
-    if(params->toDate != INT_MAX)
-        len += snprintf(&sql[len], sql_len-len,
-                        TO_DATE, params->toDate);
-    if(params->gender != 0)
-        len += snprintf(&sql[len], sql_len-len,
-                        AVG_USER_GENDER, params->gender);
-    if(params->fromAge != INT_MAX)
-        len += snprintf(&sql[len], sql_len-len,
-                        AVG_USER_FROM_AGE, database->timestamp, params->fromAge);
-    if(params->toAge != INT_MAX)
-        len += snprintf(&sql[len], sql_len-len,
-                        AVG_USER_TO_AGE, database->timestamp, params->toAge);
+    GPtrArray* visits = NULL;
+    if(UNLIKELY((guint)id >= database->visits_location_index->len ||
+                !(visits = g_ptr_array_index(database->visits_location_index,
+                                             id)) || visits->len == 0))
+    {
+        strcpy(response, "{\"avg\": 0.0}");
+        return PROCESS_RESULT_OK;
+    }
 
-    double average = 0;
-    CHECK_SQL(sqlite3_exec(database->db, sql, avg_callback, &average, NULL));
-    if(average == 0)
+    double sum = 0;
+    size_t n = 0;
+    for(guint i = 0; i < visits->len; i++)
+    {
+        visit_t* visit = g_ptr_array_index(visits, i);
+
+        if(params->fromDate != INT_MAX && visit->visited_at <= params->fromDate)
+            continue;
+        if(params->toDate != INT_MAX && visit->visited_at >= params->toDate)
+            continue;
+
+        user_t* user = NULL;
+        if((guint)visit->user < database->entities[0]->len)
+            user = g_ptr_array_index(database->entities[0], visit->user);
+        // XXX user = NULL means invalid data
+        if(UNLIKELY(!user))
+            continue;
+
+        if(params->gender != 0 && user->gender[0] != params->gender)
+            continue;
+        if(params->fromAge != INT_MAX &&
+           user->birth_date >= datediff(database, params->fromAge))
+            continue;
+        if(params->toAge != INT_MAX &&
+           user->birth_date <= datediff(database, params->toAge))
+            continue;
+
+        sum += visit->mark; n++;
+    }
+
+    if(n == 0)
         strcpy(response, "{\"avg\": 0.0}");
     else
         snprintf(response, RESPONSE_BUFFER_SIZE,
-                 "{\"avg\":%.5f}", average + 1e-10);
-
-cleanup:
-    return rc;
+                 "{\"avg\":%.5f}", sum / n + 1e-10);
+    return PROCESS_RESULT_OK;
 }
 
-static const char* VISITS = "SELECT visits.mark,visits.visited_at,"
-    "locations.place FROM visits JOIN locations ON visits.location=locations.id"
-    " WHERE visits.user=%d";
-
-static const char* VISITS_TO_DISTANCE = " AND locations.distance<%d";
-
-static const char* VISITS_COUNTRY = " AND locations.country=\"%s\"";
-
-static const char* VISITS_ORDER = " ORDER BY visits.visited_at";
-
-static const char* VISIT_FORMAT = "{\"%s\":%s,\"%s\":%s,\"%s\":\"%s\"},";
-
-
-int visits_callback(void* arg, int argc, char **argv, char **col)
-{
-    (void)argc;
-    char** argptr = (char**)arg;
-    char* response = argptr[0];
-    char* buffer = argptr[1];
-    argptr[1] = buffer + snprintf(buffer,
-        RESPONSE_BUFFER_SIZE - (response - buffer),
-        VISIT_FORMAT, col[0], argv[0], col[1], argv[1], col[2], argv[2]);
-    return 0;
-}
+static const char* VISIT_FORMAT =
+    "{\"mark\":%d,\"visited_at\":%d,\"place\":\"%s\"},";
 
 static const char* VISITS_RESULT_START = "{\"visits\":[ ";
 
 int execute_visits(database_t* database, int id,
                    const parameters_t* params, char* response)
 {
-    int rc;
-    const size_t sql_len = strlen(VISITS) + strlen(FROM_DATE) +
-        strlen(TO_DATE) + strlen(VISITS_TO_DISTANCE) +
-        strlen(VISITS_COUNTRY) + strlen(VISITS_ORDER) + 84;
-    int len;
-    char sql[sql_len];
-    memset(sql, 0, sql_len);
-
     /* first, check the user exists */
-    sqlite3_stmt* exists_stmt = database->exists_stmts[0];
-    CHECK_SQL(sqlite3_reset(exists_stmt));
-    CHECK_SQL(sqlite3_bind_int(exists_stmt, 1, id));
-    CHECK_SQL(sqlite3_step(exists_stmt));
-    if(UNLIKELY(!sqlite3_column_int(exists_stmt, 0)))
+    GPtrArray* arr = database->entities[0];
+    if(UNLIKELY((guint)id >= arr->len))
+        return PROCESS_RESULT_NOT_FOUND;
+    void* ptr = g_ptr_array_index(arr, id);
+    if(UNLIKELY(ptr == NULL))
         return PROCESS_RESULT_NOT_FOUND;
 
-    /* XXX room for optimization here: prepare statement beforehand. this could
-       save couple of cents. */
-    len = snprintf(sql, sql_len, VISITS, id);
-    if(params->fromDate != INT_MAX)
-        len += snprintf(&sql[len], sql_len-len,
-                        FROM_DATE, params->fromDate);
-    if(params->toDate != INT_MAX)
-        len += snprintf(&sql[len], sql_len-len,
-                        TO_DATE, params->toDate);
-    if(params->toDistance != INT_MAX)
-        len += snprintf(&sql[len], sql_len-len,
-                        VISITS_TO_DISTANCE, params->toDistance);
-    if(params->country[0])
-        len += snprintf(&sql[len], sql_len-len,
-                        VISITS_COUNTRY, params->country);
-    len += snprintf(&sql[len], sql_len-len,
-                    "%s", VISITS_ORDER);
+    GSequence* visits = NULL;
+    if(UNLIKELY((guint)id >= database->visits_user_index->len ||
+                !(visits = g_ptr_array_index(database->visits_user_index, id)) ||
+                g_sequence_is_empty(visits)))
+    {
+        strcpy(response, "{\"visits\":[]}");
+        return PROCESS_RESULT_OK;
+    }
 
     strcpy(response, VISITS_RESULT_START);
-    char* argptr[2] = {response, response + strlen(VISITS_RESULT_START)};
-    CHECK_SQL(sqlite3_exec(database->db, sql, visits_callback, argptr, NULL));
-    strcpy(argptr[1]-1, "]}");
+    char* buffer = response + strlen(VISITS_RESULT_START);
+    for(GSequenceIter* it = g_sequence_get_begin_iter(visits);
+        !g_sequence_iter_is_end(it); it = g_sequence_iter_next(it))
+    {
+        visit_t* visit = g_sequence_get(it);
 
-cleanup:
-    return rc;
+        if(params->fromDate != INT_MAX && visit->visited_at <= params->fromDate)
+            continue;
+        if(params->toDate != INT_MAX && visit->visited_at >= params->toDate)
+            continue;
+
+        location_t* location = NULL;
+        if((guint)visit->location < database->entities[2]->len)
+            location = g_ptr_array_index(database->entities[2], visit->location);
+        // XXX location = NULL means invalid data
+        if(!location)
+            continue;
+        if(params->toDistance != INT_MAX &&
+           location->distance >= params->toDistance)
+            continue;
+        if(params->country[0] && strncmp(location->country, params->country,
+                                         sizeof(params->country)) != 0)
+            continue;
+
+        buffer += snprintf(buffer,
+                           RESPONSE_BUFFER_SIZE - (response - buffer),
+                           VISIT_FORMAT,
+                           visit->mark,
+                           visit->visited_at,
+                           location->place);
+    }
+    strcpy(buffer-1, "]}");
+    return PROCESS_RESULT_OK;
 }
 
 int execute_method(database_t* database, int entity, int id, int method,

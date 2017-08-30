@@ -18,8 +18,12 @@ typedef struct
     const char* name;
     int column_types[5];
     const char* column_names[5];
+    int column_offsets[5];
+    int column_sizes[5];
     const char* format;
+    size_t size;
 } entity_t;
+
 
 extern const entity_t ENTITIES[3];
 

@@ -1,127 +1,71 @@
 #include <miniz_zip.h>
-#include <event2/buffer.h>
 
 #include "entity.h"
 #include "database.h"
 
 
-static const char* DDL = R"(
-CREATE TABLE users (
-    id INTEGER NOT NULL,
-    email VARCHAR(100),
-    first_name VARCHAR(50),
-    last_name VARCHAR(50),
-    gender CHAR(1),
-    birth_date INTEGER,
-    PRIMARY KEY (id)
-);
-
-CREATE TABLE locations (
-    id INTEGER NOT NULL,
-    place VARCHAR,
-    country VARCHAR(50),
-    city VARCHAR(50),
-    distance INTEGER,
-    PRIMARY KEY (id)
-);
-
-CREATE TABLE visits (
-    id INTEGER NOT NULL,
-    location INTEGER,
-    user INTEGER,
-    visited_at INTEGER,
-    mark SMALLINT,
-    PRIMARY KEY (id),
-    FOREIGN KEY(location) REFERENCES locations (id),
-    FOREIGN KEY(user) REFERENCES users (id)
-);
-CREATE INDEX visits_location ON visits (location);
-CREATE INDEX visits_user ON visits(user);
-)";
-
-static const char* INSERT_USER = "INSERT INTO users(id,email,first_name,"
-    "last_name,gender,birth_date)VALUES(?,?,?,?,?,?)";
-
-static const char* INSERT_VISIT = "INSERT INTO visits(id,location,user,"
-    "visited_at,mark)VALUES(?,?,?,?,?)";
-
-static const char* INSERT_LOCATION = "INSERT INTO locations(id,place,country,"
-    "city,distance)VALUES(?,?,?,?,?)";
-
-static const char* SELECT_USER = "SELECT id,email,first_name,last_name,gender,"
-    "birth_date FROM users WHERE id=?";
-
-static const char* SELECT_VISIT = "SELECT id,location,user,visited_at,mark FROM"
-    " visits WHERE id=?";
-
-static const char* SELECT_LOCATION = "SELECT id,place,country,city,distance"
-    " FROM locations WHERE id=?";
-
-static const char* UPDATE_USER = "UPDATE users SET email=?2,first_name=?3,"
-    "last_name=?4,gender=?5,birth_date=?6 WHERE id=?1";
-
-static const char* UPDATE_VISIT = "UPDATE visits SET location=?2,user=?3,"
-    "visited_at=?4,mark=?5 WHERE id = ?1";
-
-static const char* UPDATE_LOCATION = "UPDATE locations SET place=?2,country=?3,"
-    "city=?4,distance=?5 WHERE id=?1";
-
-static const char* EXISTS_USER = "SELECT EXISTS(SELECT 1 FROM users WHERE id=?)";
-
-static const char* EXISTS_VISIT = "SELECT EXISTS(SELECT 1 FROM visits WHERE id=?)";
-
-static const char* EXISTS_LOCATION = "SELECT EXISTS(SELECT 1 FROM locations WHERE id=?)";
-
-
-static inline int bind_val(sqlite3_stmt* stmt, const entity_t* entity,
-                           cJSON* json, int i)
+static gint visits_comparator(gconstpointer a,  gconstpointer b, gpointer data)
 {
-    if(UNLIKELY(entity->column_types[i] == COLUMN_TYPE_NONE))
-        return 0;
+    (void)data;
+    int a_visited = ((visit_t*)a)->visited_at;
+    int b_visited = ((visit_t*)b)->visited_at;
+    if(a_visited > b_visited)
+        return 1;
+    if(a_visited < b_visited)
+        return -1;
+    return 0;  // equal
+}
 
-    int rc;
-    const void* value;
-
-    cJSON* arg = cJSON_GetObjectItemCaseSensitive(json, entity->column_names[i]);
-    if(UNLIKELY(!arg || cJSON_IsNull(arg)))
-        return PROCESS_RESULT_BAD_REQUEST;
-
-    if(entity->column_types[i] == COLUMN_TYPE_INT)
+void update_visits_user_index(database_t* database, visit_t* visit, int add)
+{
+    if(add)
     {
-        /*
-        if(!cJSON_IsInt(arg))
-            return PROCESS_RESULT_BAD_REQUEST;
-        */
-        value = (void*)(intptr_t)arg->valueint;
+        int user_id = visit->user;
+        if(UNLIKELY(database->visits_user_index->len < (guint)user_id))
+            g_ptr_array_set_size(database->visits_user_index, user_id * 2);
+        GSequence* user_visits = g_ptr_array_index(
+            database->visits_user_index, user_id);
+        if(UNLIKELY(!user_visits))
+        {
+            user_visits = g_sequence_new(NULL);
+            g_ptr_array_index(database->visits_user_index, user_id) =
+                user_visits;
+        }
+        g_sequence_insert_sorted(user_visits, visit, visits_comparator, NULL);
     }
     else
     {
-        /*
-        if(!cJSON_IsString(arg))
-            return PROCESS_RESULT_BAD_REQUEST;
-        */
-        value = arg->valuestring;
+        GSequence* user_visits = g_ptr_array_index(
+            database->visits_user_index, visit->user);
+        g_sequence_remove(
+            g_sequence_lookup(
+                user_visits, visit, visits_comparator, NULL));
     }
+}
 
-    if(entity->column_types[i] == COLUMN_TYPE_INT)
+void update_visits_location_index(database_t* database, visit_t* visit, int add)
+{
+    if(add)
     {
-#ifndef NDEBUG
-        if(dump)
-            printf("%d", (int)(intptr_t)value);
-#endif  // NDEBUG
-        CHECK_SQL(sqlite3_bind_int(stmt, i+2, (intptr_t)value));
+        int location_id = visit->location;
+        if(UNLIKELY(database->visits_location_index->len < (guint)location_id))
+            g_ptr_array_set_size(database->visits_location_index, location_id*2);
+        GPtrArray* location_visits = g_ptr_array_index(
+            database->visits_location_index, location_id);
+        if(UNLIKELY(!location_visits))
+        {
+            location_visits = g_ptr_array_new();
+            g_ptr_array_index(database->visits_location_index, location_id) =
+                location_visits;
+        }
+        g_ptr_array_add(location_visits, visit);
     }
     else
     {
-#ifndef NDEBUG
-        if(dump)
-            printf("\"%s\"", (char*)value);
-#endif  // NDEBUG
-        CHECK_SQL(sqlite3_bind_text(stmt, i+2, value, -1, SQLITE_STATIC));
+        GPtrArray* location_visits = g_ptr_array_index(
+            database->visits_location_index, visit->location);
+        g_ptr_array_remove_fast(location_visits, visit);
     }
-
-cleanup:
-    return rc;
 }
 
 int insert_entity(database_t* database, cJSON* json, int e)
@@ -129,39 +73,51 @@ int insert_entity(database_t* database, cJSON* json, int e)
     if(LIKELY(phase_hack))
         set_phase(database, 2);
 
-    int rc;
     const entity_t* entity = &ENTITIES[e];
-    sqlite3_stmt* insert_stmt = database->create_stmts[e];
-    CHECK_SQL(sqlite3_reset(insert_stmt));
-    cJSON* id = cJSON_GetObjectItemCaseSensitive(json, "id");
-    if(UNLIKELY(!id || !cJSON_IsNumber(id)))
+
+    cJSON* id_json = cJSON_GetObjectItemCaseSensitive(json, "id");
+    if(UNLIKELY(!id_json || !cJSON_IsNumber(id_json)))
         return PROCESS_RESULT_BAD_REQUEST;
-#ifndef NDEBUG
-    if(dump)
-        printf("INSERT INTO %s VALUES (%d,", entity->name, id->valueint);
-#endif  // NDEBUG
-    CHECK_SQL(sqlite3_bind_int(insert_stmt, 1, id->valueint));
+    int id = id_json->valueint;
+
+    void* ptr = malloc(entity->size);
+    if(!ptr)
+        return PROCESS_RESULT_ERROR;
+
+    *(int*)ptr = id;
     for(int i = 0; i < 5; i++)
     {
-        CHECK_ZERO(bind_val(insert_stmt, entity, json, i));
-#ifndef NDEBUG
-        if(dump)
+        if(UNLIKELY(entity->column_types[i] != COLUMN_TYPE_NONE))
         {
-            if(i != 4 && entity->column_types[i+1] != COLUMN_TYPE_NONE)
-                printf(",");
-        }
-#endif  // NDEBUG
-    }
-#ifndef NDEBUG
-    if(dump)
-        printf(");\n");
-#endif  // NDEBUG
-    CHECK_SQL(sqlite3_step(insert_stmt));
-    if(rc == SQLITE_DONE)
-        rc = 0;
+            cJSON* arg = cJSON_GetObjectItemCaseSensitive(
+                json, entity->column_names[i]);
+            if(UNLIKELY(!arg || cJSON_IsNull(arg)))
+                return PROCESS_RESULT_BAD_REQUEST;
 
-cleanup:
-    return rc;
+            if(entity->column_types[i] == COLUMN_TYPE_INT)
+            {
+                *(int*)((char*)ptr + entity->column_offsets[i]) = arg->valueint;
+            }
+            else
+            {
+                strncpy((char*)ptr + entity->column_offsets[i],
+                        arg->valuestring,
+                        entity->column_sizes[i]);
+            }
+        }
+    }
+    if(database->entities[e]->len < (guint)id)
+        // poor man's preallocation
+        g_ptr_array_set_size(database->entities[e], id*2);
+    g_ptr_array_index(database->entities[e], id) = ptr;
+
+    if(e == 1)  // visit. XXX relying on fact that visits are loaded last
+    {
+        update_visits_user_index(database, ptr, 1);
+        update_visits_location_index(database, ptr, 1);
+    }
+
+    return PROCESS_RESULT_OK;
 }
 
 static int insert_entities(database_t* database, cJSON* entities, int e)
@@ -176,138 +132,31 @@ cleanup:
     return rc;
 }
 
-static int setup_statements(database_t* database)
-{
-    int rc = 0;
-    sqlite3* db = database->db;
-
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  INSERT_USER,
-                  strlen(INSERT_USER),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->create_stmts[0],
-                  NULL));
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  INSERT_VISIT,
-                  strlen(INSERT_VISIT),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->create_stmts[1],
-                  NULL));
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  INSERT_LOCATION,
-                  strlen(INSERT_LOCATION),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->create_stmts[2],
-                  NULL));
-
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  SELECT_USER,
-                  strlen(SELECT_USER),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->read_stmts[0],
-                  NULL));
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  SELECT_VISIT,
-                  strlen(SELECT_VISIT),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->read_stmts[1],
-                  NULL));
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  SELECT_LOCATION,
-                  strlen(SELECT_LOCATION),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->read_stmts[2],
-                  NULL));
-
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  UPDATE_USER,
-                  strlen(UPDATE_USER),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->write_stmts[0],
-                  NULL));
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  UPDATE_VISIT,
-                  strlen(UPDATE_VISIT),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->write_stmts[1],
-                  NULL));
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  UPDATE_LOCATION,
-                  strlen(UPDATE_LOCATION),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->write_stmts[2],
-                  NULL));
-
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  EXISTS_USER,
-                  strlen(EXISTS_USER),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->exists_stmts[0],
-                  NULL));
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  EXISTS_VISIT,
-                  strlen(EXISTS_VISIT),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->exists_stmts[1],
-                  NULL));
-    CHECK_SQL(sqlite3_prepare_v3(
-                  db,
-                  EXISTS_LOCATION,
-                  strlen(EXISTS_LOCATION),
-                  SQLITE_PREPARE_PERSISTENT,
-                  &database->exists_stmts[2],
-                  NULL));
-
-cleanup:
-    return rc;
-}
-
-
 static const char* OPTIONS = "options.txt";
 
 int bootstrap(database_t* database, const char* filename)
 {
     int rc = 0;
 
-    sqlite3* db;
-    VERIFY_ZERO(sqlite3_open(":memory:", &db));
-    database->db = db;
     database->timestamp = time(NULL);
     database->phase = 0;
 
+    database->entities[0] = g_ptr_array_sized_new(16384);
+    g_ptr_array_set_size(database->entities[0], 16384);
+    database->entities[1] = g_ptr_array_sized_new(131072);
+    g_ptr_array_set_size(database->entities[1], 131072);
+    database->entities[2] = g_ptr_array_sized_new(16384);
+    g_ptr_array_set_size(database->entities[2], 16384);
+    database->visits_user_index = g_ptr_array_sized_new(16384);
+    g_ptr_array_set_size(database->visits_user_index, 16384);
+    database->visits_location_index = g_ptr_array_sized_new(16384);
+    g_ptr_array_set_size(database->visits_location_index, 16384);
+
     mz_zip_archive archive;
     memset(&archive, 0, sizeof(archive));
-
-    CHECK_SQL(sqlite3_exec(db, "PRAGMA synchronous = OFF",
-                           NULL, NULL, NULL));
-    CHECK_SQL(sqlite3_exec(db, "PRAGMA temp_store = MEMORY",
-                           NULL, NULL, NULL));
-    CHECK_SQL(sqlite3_exec(db, "PRAGMA journal_mode = OFF",
-                           NULL, NULL, NULL));
-    CHECK_SQL(sqlite3_exec(db, DDL, NULL, NULL, NULL));
-    CHECK_SQL(setup_statements(database));
-    CHECK_SQL(sqlite3_exec(db, "BEGIN", NULL, NULL, NULL));
-
-#ifndef NDEBUG
-    if(dump)
-        printf("%s\nBEGIN;\n", DDL);
-#endif  // NDEBUG
-
     if(!mz_zip_reader_init_file(&archive, filename, 0))
-    {
         return mz_zip_get_last_error(&archive);
-    }
+
     for(unsigned i = 0; i < mz_zip_reader_get_num_files(&archive); i++)
     {
         mz_zip_archive_file_stat stat;
@@ -344,8 +193,6 @@ int bootstrap(database_t* database, const char* filename)
                     cJSON_GetObjectItemCaseSensitive(root, ENTITIES[i].name);
                 if(entities)
                 {
-                    /* NOTE default SQLite's PRAGMA foreign_keys is OFF, so
-                       we can safely insert visits without any particular order */
                     CHECK_ZERO(insert_entities(database, entities, i));
                     break;
                 }
@@ -366,75 +213,11 @@ cleanup:
     mz_zip_reader_end(&archive);
     if(rc == 0)
     {
-#ifndef NDEBUG
-        if(dump)
-            printf("COMMIT;\nANALYZE;\n");
-#endif  // NDEBUG
-
-        CHECK_SQL(sqlite3_exec(db, "COMMIT",
-                               NULL, NULL, NULL));
-        CHECK_SQL(sqlite3_exec(db, "PRAGMA foreign_keys = ON",
-                               NULL, NULL, NULL));
-        CHECK_SQL(sqlite3_exec(db, "ANALYZE",
-                               NULL, NULL, NULL));
         if(phase_hack)
             database->phase = 1;
+        database->timestamp_tm = gmtime((time_t*)&database->timestamp);
+        database->timestamp_tm->tm_isdst = 0;
     }
-    return rc;
-}
-
-static int SQL_callback(void *data, int argc, char **argv, char **azColName)
-{
-    for(int i = 0; i<argc; i++)
-    {
-        evbuffer_add_printf((struct evbuffer*)data, "%s = %s\n",
-                            azColName[i], argv[i] ? argv[i] : "NULL");
-    }
-    return 0;
-}
-
-int process_SQL(struct evhttp_request* req, void* arg)
-{
-    int rc = -1;
-    struct evbuffer* in_buf, *out_buf = NULL;
-
-    CHECK_NONZERO(in_buf = evhttp_request_get_input_buffer(req));
-    size_t length = evbuffer_get_length(in_buf);
-    char* body = alloca(length+1);
-    memset(body, 0, length+1);
-    CHECK_POSITIVE(evbuffer_remove(in_buf, body, length));
-
-    CHECK_NONZERO(out_buf = evbuffer_new());
-    database_t* database = (database_t*)arg;
-    CHECK_SQL(sqlite3_exec(database->db, body, SQL_callback, out_buf, NULL));
-    evhttp_send_reply(req, HTTP_OK, "OK", out_buf);
-
-    // report some statistics
-    int curr, max;
-    if(sqlite3_status(SQLITE_STATUS_MEMORY_USED, &curr, &max, 0) == 0)
-        printf("MEMORY_USED: curr=%d max=%d\n", curr, max);
-    if(sqlite3_status(SQLITE_STATUS_PAGECACHE_USED, &curr, &max, 0) == 0)
-        printf("PAGECACHE_USED: curr=%d max=%d\n", curr, max);
-    if(sqlite3_status(SQLITE_STATUS_PAGECACHE_OVERFLOW, &curr, &max, 0) == 0)
-        printf("PAGECACHE_OVERFLOW: curr=%d max=%d\n", curr, max);
-    if(sqlite3_status(SQLITE_STATUS_SCRATCH_USED, &curr, &max, 0) == 0)
-        printf("SCRATCH_USED: curr=%d max=%d\n", curr, max);
-    if(sqlite3_status(SQLITE_STATUS_SCRATCH_OVERFLOW, &curr, &max, 0) == 0)
-        printf("SCRATCH_OVERFLOW: curr=%d max=%d\n", curr, max);
-    if(sqlite3_status(SQLITE_STATUS_MALLOC_SIZE, &curr, &max, 0) == 0)
-        printf("MALLOC_SIZE: curr=%d max=%d\n", curr, max);
-    if(sqlite3_status(SQLITE_STATUS_PARSER_STACK, &curr, &max, 0) == 0)
-        printf("PARSER_STACK: curr=%d max=%d\n", curr, max);
-    if(sqlite3_status(SQLITE_STATUS_PAGECACHE_SIZE, &curr, &max, 0) == 0)
-        printf("PAGECACHE_SIZE: curr=%d max=%d\n", curr, max);
-    if(sqlite3_status(SQLITE_STATUS_SCRATCH_SIZE, &curr, &max, 0) == 0)
-        printf("SCRATCH_SIZE: curr=%d max=%d\n", curr, max);
-
-    rc = 0;
-
-cleanup:
-    if(out_buf)
-        evbuffer_free(out_buf);
     return rc;
 }
 
@@ -445,17 +228,8 @@ void set_phase(database_t* database, int phase)
         if(UNLIKELY(database->phase == 1))
         {
             database->phase = 2;
-            if(UNLIKELY(sqlite3_exec(database->db, "BEGIN", NULL, NULL, NULL) != 0))
-            {
-                database->phase = 0;
-                fprintf(
-                    stderr,
-                    "Phase hack: beginning transaction for phase 2 FAILED!\n");
-            }
-            else
-            {
-                fprintf(stderr, "Phase 2 BEGIN: success\n");
-            }
+            // XXX currently no-op
+            printf("Detected phase 2 start\n");
         }
     }
     if(phase == 3)
@@ -463,17 +237,8 @@ void set_phase(database_t* database, int phase)
         if(UNLIKELY(database->phase == 2))
         {
             database->phase = 3;
-            if(UNLIKELY(sqlite3_exec(database->db, "COMMIT", NULL, NULL, NULL) != 0))
-            {
-                database->phase = 0;
-                fprintf(
-                    stderr,
-                    "Phase hack: committing transaction for phase 2 FAILED!\n");
-            }
-            else
-            {
-                fprintf(stderr, "Phase 2 COMMIT: success\n");
-            }
+            // XXX currently no-op
+            printf("Detected phase 3 start\n");
         }
     }
 }

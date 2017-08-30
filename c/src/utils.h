@@ -44,6 +44,5 @@
 
 extern int phase_hack;
 extern int verbose;
-extern int dump;
 
 #endif  // _UTILS_H_

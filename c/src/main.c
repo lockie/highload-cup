@@ -21,7 +21,6 @@
 
 
 int verbose;
-int dump;
 int phase_hack;
 
 static void terminate_handler(int signum)
@@ -56,74 +55,13 @@ const char* print_size(uint64_t size)
     return result;
 }
 
-typedef void* malloc_t(size_t);
 
-// XXX really weird bug in SQLite memsys5: calling realloc(0, sz) causes SIGSEGV
-void* memsys5_realloc(void* ptr, size_t sz)
+static void setup_memory()
 {
-    if(LIKELY(ptr != NULL))
-        return sqlite3_realloc(ptr, sz);
-    return sqlite3_malloc(sz);
-}
-
-static void setup_memory(size_t pool_size)
-{
-    void* pool;
-    VERIFY_POSITIVE(pool = mmap(NULL, pool_size,
-                  PROT_READ | PROT_WRITE,
-                  /* private CoW memory */
-                  MAP_PRIVATE | MAP_ANONYMOUS
-                  /* no swapping, pre-fault */
-                  | MAP_NORESERVE | MAP_POPULATE,
-                  -1, 0));
     if(mlockall(MCL_CURRENT) != 0)
     {
         perror("mlockall");
     }
-    VERIFY_ZERO(madvise(pool, pool_size, MADV_DONTDUMP));
-    /* XXX use hugepages to speed up page lookups */
-    FILE* hugetlb = fopen("/sys/kernel/mm/transparent_hugepage/enabled", "r");
-    if(!hugetlb)
-    {
-        if(verbose)
-            printf("Hugepages not supported by OS!\n");
-    }
-    else
-    {
-        char status[32] = {0};
-        size_t read = fread(status, 1, 32, hugetlb);
-        if(strncmp(status, "[never]", read) == 0)
-        {
-            if(verbose)
-                printf("Hugepages support turned off!\n");
-        }
-        else
-        {
-            VERIFY_ZERO(madvise(pool, pool_size, MADV_HUGEPAGE));
-            if(verbose)
-                printf("Hugepages support enabled\n");
-        }
-        fclose(hugetlb);
-    }
-
-    sqlite3_config(SQLITE_CONFIG_HEAP, pool, pool_size, 256);
-
-    if(verbose)
-        printf("Reserved %s for memory pool\n", print_size(pool_size));
-
-    VERIFY_ZERO(sqlite3_config(SQLITE_CONFIG_LOOKASIDE, 0, 0));
-
-    sqlite3_mem_methods sqlite_mm;
-    sqlite3_config(SQLITE_CONFIG_GETMALLOC, &sqlite_mm);
-    /* damn SQLite with damn int's */
-    malloc_t* sqlite_malloc_fn = (malloc_t*)sqlite_mm.xMalloc;
-
-    cJSON_Hooks cjson_mm;
-    cjson_mm.malloc_fn = sqlite_malloc_fn;
-    cjson_mm.free_fn = sqlite_mm.xFree;
-    cJSON_InitHooks(&cjson_mm);
-
-    event_set_mem_functions(sqlite_malloc_fn, memsys5_realloc, sqlite_mm.xFree);
 }
 
 static int setup_socket(int portnum)
@@ -216,16 +154,6 @@ int main(int argc, char** argv)
 
     phase_hack = args.phase_hack_flag;
     verbose = args.verbose_flag;
-    dump = args.dump_flag;
-    if(dump)
-        verbose = 0;
-#ifdef NDEBUG
-    if(dump)
-    {
-        fprintf(stderr, "This is release build, dump functionality disabled\n");
-        return EXIT_FAILURE;
-    }
-#endif
     if(args.threads_arg != 1 && args.phase_hack_flag)
     {
         fprintf(stderr, "Can't do phase hack in multithreaded mode!\n");
@@ -234,19 +162,11 @@ int main(int argc, char** argv)
 
     setup_signals();
 
-    setup_memory(1L << args.memory_arg);
-
-    if(args.threads_arg == 1)
-    {
-        VERIFY_ZERO(sqlite3_config(SQLITE_CONFIG_SINGLETHREAD));
-    }
+    setup_memory();
 
     database_t database;
     MEASURE_DURATION(VERIFY_ZERO(bootstrap(&database, args.data_arg)),
                      "Bootstrapping");
-
-    if(dump)
-        return EXIT_SUCCESS;
 
 #ifndef NDEBUG
     if(verbose)

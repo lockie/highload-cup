@@ -1,32 +1,52 @@
 #ifndef _DATABASE_H_
 #define _DATABASE_H_
 
-#include <stdio.h>
+#include <time.h>
 
-#include <sqlite3.h>
+#include <glib.h>
+
 #include <event2/http.h>
 #include <cJSON.h>
 
 #include "utils.h"
 
 
-#define CHECK_SQL(x) {rc=(x); if(rc!=0&&rc!=SQLITE_DONE&&rc!=SQLITE_ROW){ \
-            if(!(IS_SET(NDEBUG)))                                         \
-                fprintf(stderr, "%s: SQL error %d: %s\n",                 \
-                        #x, rc, sqlite3_errstr(rc));                      \
-            goto cleanup;}}
+typedef struct
+{
+    int id;
+    char email[128];
+    char first_name[64];
+    char last_name[64];
+    char gender[8];
+    int birth_date;
+} user_t;
 
 typedef struct
 {
-    sqlite3* db;
+    int id;
+    char place[128];
+    char country[64];
+    char city[64];
+    int distance;
+} location_t;
 
-    /* NOTE : order of statements is the same as in ENTITIES array */
-    sqlite3_stmt* create_stmts[3];
-    sqlite3_stmt* read_stmts[3];
-    sqlite3_stmt* write_stmts[3];
-    sqlite3_stmt* exists_stmts[3];
+typedef struct
+{
+    int id;
+    int location;
+    int user;
+    int visited_at;
+    int mark;
+} visit_t;
+
+typedef struct
+{
+    GPtrArray* entities[3]; // users, visits, locations. XXX all 1-based
+    GPtrArray* visits_user_index;  // holds GSequence*s of visits for every user
+    GPtrArray* visits_location_index;  // holds GPtrArray*s of visits for every location
 
     int timestamp;  // current timestamp from options.txt
+    struct tm* timestamp_tm;  // same, in struct tm format
     int phase;  // HACK : trying to determine current testing phase :E
 } database_t;
 
@@ -34,6 +54,9 @@ int bootstrap(database_t*, const char*);
 int process_SQL(struct evhttp_request*, void*);  // XXX debug
 int insert_entity(database_t*, cJSON*, int);
 void set_phase(database_t* database, int phase);
+
+void update_visits_user_index(database_t*, visit_t* visit, int add);
+void update_visits_location_index(database_t*, visit_t* visit, int add);
 
 
 #endif  // _DATABASE_H_

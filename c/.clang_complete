@@ -1,8 +1,9 @@
+-I/usr/include/glib-2.0
+-I/usr/lib64/glib-2.0/include
 -Isrc
 -Ivendor/libevent/include
 -Ivendor/cJSON
 -Ibuild/vendor/libevent/include
--Ibuild/vendor/sqlite
 -Ivendor/miniz
 -Ibuild/src
 -DNDEBUG

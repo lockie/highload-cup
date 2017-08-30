@@ -2,7 +2,11 @@ project(server LANGUAGES C)
 
 include(${CMAKE_SOURCE_DIR}/cmake/Gengetopt.cmake)
 
-find_package(Threads)
+find_package(Threads REQUIRED)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GLIB REQUIRED glib-2.0)
+
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall -Wextra -pedantic")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
@@ -31,9 +35,9 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 include_directories(
+  ${GLIB_INCLUDE_DIRS}
   ${LIBEVENT_INCLUDE_DIRS}
   "${CMAKE_SOURCE_DIR}/vendor/cJSON"
-  "${CMAKE_BINARY_DIR}/vendor/sqlite"
   "${CMAKE_SOURCE_DIR}/vendor/miniz"
   "${CMAKE_CURRENT_BINARY_DIR}"
 )
@@ -42,4 +46,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 add_executable(server ${SRCS})
 target_link_libraries(server
-  event_static event_pthreads_static cjson SQLite miniz dl ${CMAKE_THREAD_LIBS_INIT})
+  event_static event_pthreads_static cjson miniz dl
+  ${CMAKE_THREAD_LIBS_INIT}
+  ${GLIB_LIBRARIES})

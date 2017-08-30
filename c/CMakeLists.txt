@@ -57,10 +57,6 @@ add_subdirectory("vendor/cJSON")
 set_target_properties(cjson
   PROPERTIES COMPILE_DEFINITIONS CJSON_NESTING_LIMIT=4)
 
-# SQLite #######################################################################
-
-add_subdirectory("vendor/sqlite")
-
 # Miniz ########################################################################
 
 add_subdirectory("vendor/miniz")

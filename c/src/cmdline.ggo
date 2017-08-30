@@ -12,10 +12,6 @@ option "verbose" v
   "Be verbose"
   flag off
 
-option "dump" -
-  "Dump SQL (only in debug build)"
-  flag off
-
 option "data" d
   "Location of data.zip file"
   string default="/tmp/data/data.zip"
@@ -23,11 +19,6 @@ option "data" d
 option "phase-hack" -
   "Hackishly try to determine current testing phase and act accordingly"
   flag off
-
-option "memory" m
-  "Size of memory pool to reserve, in powers of two, e.g. 2**31 = 2147483648 = 2Gb"
-  int default="31"
-  optional
 
 option "threads" t
   "Number of threads to launch"
