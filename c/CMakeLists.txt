@@ -19,7 +19,7 @@ add_compile_options(-march=sandybridge -pipe)
 set(CMAKE_C_FLAGS_RELEASE
   "${CMAKE_C_FLAGS_RELEASE} -fomit-frame-pointer -ffunction-sections -fdata-sections -flto -fno-fat-lto-objects")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO
-  "${CMAKE_C_FLAGS_RELWITHDEBINFO} -fomit-frame-pointer -ffunction-sections -fdata-sections")
+  "-O3 -g -DNDEBUG -DPROFILE -fno-omit-frame-pointer -ffunction-sections -fdata-sections")
 set(CMAKE_C_FLAGS_MINSIZEREL
   "${CMAKE_C_FLAGS_MINSIZEREL} -fomit-frame-pointer -ffunction-sections -fdata-sections")
 set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -flto")

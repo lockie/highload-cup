@@ -11,6 +11,8 @@ pkg_check_modules(GLIB REQUIRED glib-2.0)
 
 find_package(JeMalloc REQUIRED)
 
+find_package(Gperftools)
+
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall -Wextra -pedantic")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
@@ -38,6 +40,11 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
   endif()
 endif()
 
+
+if(GPERFTOOLS_FOUND)
+  include_directories(${GPERFTOOLS_INCLUDE_DIR})
+endif()
+
 include_directories(
   ${JEMALLOC_INCLUDE_DIR}
   ${GLIB_INCLUDE_DIRS}
@@ -54,4 +61,11 @@ target_link_libraries(server
   event_static event_pthreads_static cjson miniz dl
   ${CMAKE_THREAD_LIBS_INIT}
   ${GLIB_LIBRARIES}
-  ${JEMALLOC_LIBRARIES})
+  ${JEMALLOC_LIBRARIES}
+)
+
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+  if(GPERFTOOLS_FOUND)
+    target_link_libraries(server ${GPERFTOOLS_LIBRARIES})
+  endif()
+endif()

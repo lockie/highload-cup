@@ -9,6 +9,10 @@
 
 #include <pthread.h>
 
+#ifdef PROFILE
+#include <gperftools/profiler.h>
+#endif  // PROFILE
+
 #include <jemalloc/jemalloc.h>
 
 #include <event2/event.h>
@@ -37,11 +41,31 @@ static void hangup_handler(int signum)
     malloc_stats_print(NULL, NULL, NULL);
 }
 
+#ifdef PROFILE
+static void usr1_handler(int signum)
+{
+    (void)signum;
+    printf("Turning profiling ON\n");
+    ProfilerStart("server.prof");
+}
+
+static void usr2_handler(int signum)
+{
+    (void)signum;
+    printf("Turning profiling OFF\n");
+    ProfilerStop();
+}
+#endif // PROFILE
+
 static void setup_signals()
 {
     VERIFY_NOT(signal(SIGPIPE, SIG_IGN), SIG_ERR);
     VERIFY_NOT(signal(SIGINT, terminate_handler), SIG_ERR);
     VERIFY_NOT(signal(SIGHUP, hangup_handler), SIG_ERR);
+#ifdef PROFILE
+    VERIFY_NOT(signal(SIGUSR1, usr1_handler), SIG_ERR);
+    VERIFY_NOT(signal(SIGUSR2, usr2_handler), SIG_ERR);
+#endif  // PROFILE
 }
 
 // based on https://stackoverflow.com/a/3898986/1336774
