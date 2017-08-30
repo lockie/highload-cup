@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
+#include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -175,6 +176,54 @@ static void setup_threads(int count, int portnum, database_t* database)
     }
 }
 
+void* warmup(void* arg)
+{
+    (void)arg;
+
+    sleep(590);
+
+    if(verbose)
+        printf("Starting warm-up...\n");
+
+    static char buffer[2048];
+    strcpy(buffer, "curl -s ");
+    strcat(buffer, " http://localhost/users/1");
+    strcat(buffer, " http://localhost/users/42");
+    strcat(buffer, " http://localhost/users/1000");
+    strcat(buffer, " http://localhost/users/666/visits");
+    strcat(buffer, " http://localhost/users/1/visits");
+    strcat(buffer, " http://localhost/users/42/visits");
+    strcat(buffer, " http://localhost/users/1000/visits");
+    strcat(buffer, " \"http://localhost/users/827374/visits?country=%D0%94%D0%B0%D0%BD%D0%B8%D1%8F&fromDate=842572800\"");
+    strcat(buffer, " http://localhost/visits/1");
+    strcat(buffer, " http://localhost/visits/42");
+    strcat(buffer, " http://localhost/visits/1000");
+    strcat(buffer, " http://localhost/locations/1");
+    strcat(buffer, " http://localhost/locations/42");
+    strcat(buffer, " http://localhost/locations/1000");
+    strcat(buffer, " \"http://locations/482406/avg?fromDate=1397174400&fromAge=30\"");
+    strcat(buffer, " \"http://localhost/locations/865275/avg?gender=m&toAge=42\"");
+    strcat(buffer, " > /dev/null");
+
+    int rc = 0;
+    MEASURE_DURATION(system(buffer), "Warm-up");
+    if(rc != 0 && verbose)
+    {
+        fprintf(stderr,
+                "Warning: warm-up command failed with exit code %d\n", rc);
+    }
+    return NULL;
+}
+
+void setup_warmup()
+{
+    pthread_t warmup_thread;
+    pthread_attr_t attr;
+    VERIFY_ZERO(pthread_attr_init(&attr));
+    VERIFY_ZERO(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED));
+    VERIFY_ZERO(pthread_create(&warmup_thread, &attr, &warmup, NULL));
+}
+
 int main(int argc, char** argv)
 {
     // Docker <_<
@@ -190,6 +239,8 @@ int main(int argc, char** argv)
     setup_signals();
 
     setup_memory();
+
+    setup_warmup();
 
     database_t database;
     MEASURE_DURATION(VERIFY_ZERO(bootstrap(&database, args.data_arg)),
